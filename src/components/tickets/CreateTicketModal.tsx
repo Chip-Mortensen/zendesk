@@ -98,24 +98,22 @@ export default function CreateTicketModal({ isOpen, onClose, onTicketCreated }: 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-900">Create New Ticket</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 transition-colors"
+            className="text-gray-500 hover:text-gray-700"
             aria-label="Close modal"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            ✕
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="title" className="block text-sm font-medium text-gray-900 mb-1">
               Title
             </label>
             <input
@@ -124,11 +122,9 @@ export default function CreateTicketModal({ isOpen, onClose, onTicketCreated }: 
               name="title"
               value={formData.title}
               onChange={handleChange}
-              className={`mt-1 block w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-2 
-                ${errors.title 
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                }`}
+              className={`block w-full rounded-md border ${
+                errors.title ? 'border-red-500' : 'border-gray-300'
+              } px-3 py-2 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
               placeholder="Enter ticket title"
             />
             {errors.title && (
@@ -137,7 +133,7 @@ export default function CreateTicketModal({ isOpen, onClose, onTicketCreated }: 
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="description" className="block text-sm font-medium text-gray-900 mb-1">
               Description
             </label>
             <textarea
@@ -146,11 +142,9 @@ export default function CreateTicketModal({ isOpen, onClose, onTicketCreated }: 
               value={formData.description}
               onChange={handleChange}
               rows={4}
-              className={`mt-1 block w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-2 
-                ${errors.description 
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                }`}
+              className={`block w-full rounded-md border ${
+                errors.description ? 'border-red-500' : 'border-gray-300'
+              } px-3 py-2 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
               placeholder="Describe the issue in detail"
             />
             {errors.description && (
@@ -158,18 +152,18 @@ export default function CreateTicketModal({ isOpen, onClose, onTicketCreated }: 
             )}
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className="flex justify-end space-x-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <span className="flex items-center">

@@ -40,13 +40,13 @@ export default function TicketsPage() {
   const getStatusColor = (status: Ticket['status']) => {
     switch (status) {
       case 'open':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
       case 'in_progress':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'closed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-700 border-green-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
@@ -55,7 +55,7 @@ export default function TicketsPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-900">Support Tickets</h1>
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none"
           onClick={() => setIsCreateModalOpen(true)}
         >
           Create Ticket
@@ -63,19 +63,23 @@ export default function TicketsPage() {
       </div>
 
       {loading ? (
-        <div className="text-center">Loading tickets...</div>
+        <div className="text-center text-gray-600">Loading tickets...</div>
+      ) : tickets.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-gray-600">No tickets found. Create your first ticket to get started.</p>
+        </div>
       ) : (
-        <div className="bg-white shadow-sm rounded-lg overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Title
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created
                 </th>
               </tr>
@@ -83,13 +87,13 @@ export default function TicketsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {tickets.map((ticket) => (
                 <tr key={ticket.id} className="hover:bg-gray-50 cursor-pointer">
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4">
                     <div className="text-sm font-medium text-gray-900">{ticket.title}</div>
-                    <div className="text-sm text-gray-500">{ticket.description}</div>
+                    <div className="text-sm text-gray-500 line-clamp-1">{ticket.description}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(ticket.status)}`}>
-                      {ticket.status}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
+                      {ticket.status.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
