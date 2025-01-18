@@ -7,6 +7,7 @@ interface CreateTicketModalProps {
   isOpen: boolean;
   onClose: () => void;
   onTicketCreated: () => void;
+  organizationId: string;
 }
 
 interface FormData {
@@ -19,7 +20,7 @@ interface FormErrors {
   description?: string;
 }
 
-export default function CreateTicketModal({ isOpen, onClose, onTicketCreated }: CreateTicketModalProps) {
+export default function CreateTicketModal({ isOpen, onClose, onTicketCreated, organizationId }: CreateTicketModalProps) {
   const [formData, setFormData] = useState<FormData>({
     title: '',
     description: '',
@@ -73,6 +74,10 @@ export default function CreateTicketModal({ isOpen, onClose, onTicketCreated }: 
     setLoading(true);
 
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
       const { error } = await supabase
         .from('tickets')
         .insert([
@@ -80,7 +85,8 @@ export default function CreateTicketModal({ isOpen, onClose, onTicketCreated }: 
             title: formData.title.trim(),
             description: formData.description.trim(),
             status: 'open',
-            // TODO: Add created_by once auth is implemented
+            organization_id: organizationId,
+            created_by: user.id,
           },
         ]);
 
