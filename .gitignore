@@ -37,3 +37,10 @@ coverage/
 
 # TypeScript build artifacts
 *.tsbuildinfo
+
+# Cursor
+.cursorrules
+
+# MD Files
+*.md
+.md
