@@ -12,23 +12,6 @@ interface UserData {
   };
 }
 
-interface Organization {
-  name: string;
-}
-
-interface MemberDetails {
-  organization: {
-    name: string;
-  };
-  user_id: string;
-}
-
-interface MemberData {
-  user_id: string;
-  organization_id: string;
-  organization: Organization;
-}
-
 export default function CustomerPortalLayout({
   children,
 }: {

@@ -1,21 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { Comment } from '@/types/tickets';
+import { TicketCommentWithUser } from '@/types/tickets';
 import { formatCommentDate } from '@/utils/tickets/commentUtils';
+import { commentQueries } from '@/utils/sql/ticketQueries';
 import { supabase } from '@/utils/supabase';
 
 interface TicketCommentsProps {
-  comments: Comment[];
+  comments: TicketCommentWithUser[];
   ticketId: string;
-  organizationId: string;
 }
 
-function getDisplayName(comment: Comment): string {
-  return comment.commenter_name;
+function getDisplayName(comment: TicketCommentWithUser): string {
+  return comment.users?.name || 'Unknown User';
 }
 
-export default function TicketComments({ comments, ticketId, organizationId }: TicketCommentsProps) {
+export default function TicketComments({ comments, ticketId }: TicketCommentsProps) {
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,23 +28,11 @@ export default function TicketComments({ comments, ticketId, organizationId }: T
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      // Get user's name
-      const { data: userData } = await supabase
-        .from('users')
-        .select('name')
-        .eq('id', user.id)
-        .single();
-
-      const { error } = await supabase
-        .from('ticket_comments')
-        .insert([
-          {
-            ticket_id: ticketId,
-            comment_text: newComment.trim(),
-            created_by: user.id,
-            commenter_name: userData?.name || 'Unknown User'
-          },
-        ]);
+      const { error } = await commentQueries.createComment({
+        ticket_id: ticketId,
+        comment_text: newComment.trim(),
+        created_by: user.id,
+      });
 
       if (error) throw error;
       setNewComment('');

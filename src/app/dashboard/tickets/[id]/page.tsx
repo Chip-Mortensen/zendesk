@@ -1,70 +1,99 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { ticketQueries, commentQueries, subscriptionHelpers } from '@/utils/sql/ticketQueries';
+import { Ticket, TicketCommentWithUser } from '@/types/tickets';
+import { supabase } from '@/utils/supabase';
 import TicketDetailContent from './TicketDetailContent';
 
-export default async function TicketDetail({ params }: { params: { id: string } }) {
-  const { id } = await params;
-  const supabase = createServerComponentClient({ 
-    cookies
-  });
+export default function TicketDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [comments, setComments] = useState<TicketCommentWithUser[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Check authentication
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (!user || userError) {
-    redirect('/auth?type=admin');
+  useEffect(() => {
+    async function loadData() {
+      // Check authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/auth?type=admin');
+        return;
+      }
+
+      try {
+        const ticketId = params.id as string;
+        
+        // Fetch ticket data
+        const { data: ticketData, error: ticketError } = await ticketQueries.getTicketById(ticketId);
+        if (ticketError || !ticketData) {
+          throw new Error(ticketError?.message || 'Error fetching ticket');
+        }
+        setTicket(ticketData);
+
+        // Fetch comments
+        const { data: commentsData, error: commentsError } = await commentQueries.getTicketComments(ticketId);
+        if (commentsError) {
+          throw new Error(commentsError.message);
+        }
+        setComments(commentsData || []);
+      } catch (error) {
+        console.error('Error loading ticket details:', error);
+        router.push('/dashboard/tickets');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, [params.id, router]);
+
+  useEffect(() => {
+    if (!ticket?.id) return;
+
+    // Subscribe to ticket changes
+    const ticketSubscription = subscriptionHelpers.subscribeToTicket(
+      ticket.id,
+      (payload) => {
+        if (payload.eventType === 'DELETE') {
+          router.push('/dashboard/tickets');
+          return;
+        }
+        setTicket(payload.new as Ticket);
+      }
+    );
+
+    // Subscribe to comment changes
+    const commentSubscription = subscriptionHelpers.subscribeToComments(
+      ticket.id,
+      (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setComments(prev => [...prev, payload.new as TicketCommentWithUser]);
+        } else if (payload.eventType === 'UPDATE') {
+          setComments(prev => prev.map(comment => 
+            comment.id === payload.new.id ? payload.new as TicketCommentWithUser : comment
+          ));
+        } else if (payload.eventType === 'DELETE') {
+          setComments(prev => prev.filter(comment => comment.id !== payload.old.id));
+        }
+      }
+    );
+
+    return () => {
+      ticketSubscription.unsubscribe();
+      commentSubscription.unsubscribe();
+    };
+  }, [ticket?.id, router]);
+
+  if (loading) {
+    return <div className="p-4">Loading ticket details...</div>;
   }
 
-  // Get user's organization
-  const { data: memberData, error: memberError } = await supabase
-    .from('org_members')
-    .select('organization_id')
-    .eq('user_id', user.id)
-    .eq('role', 'admin')
-    .single();
-
-  if (memberError || !memberData) {
-    console.error('Error fetching member data:', memberError);
-    redirect('/auth?type=admin');
+  if (!ticket) {
+    return <div className="p-4">Ticket not found</div>;
   }
 
-  // Fetch ticket details
-  const { data: ticket, error: ticketError } = await supabase
-    .from('tickets')
-    .select('*')
-    .eq('id', id)
-    .eq('organization_id', memberData.organization_id)
-    .single();
-
-  if (ticketError || !ticket) {
-    console.error('Error fetching ticket:', ticketError);
-    redirect('/dashboard/tickets');
-  }
-
-  // Fetch comments with user data
-  const { data: comments, error: commentsError } = await supabase
-    .from('ticket_comments')
-    .select(`
-      id,
-      ticket_id,
-      comment_text,
-      created_at,
-      created_by,
-      commenter_name
-    `)
-    .eq('ticket_id', id)
-    .order('created_at', { ascending: true });
-
-  if (commentsError) {
-    console.error('Error fetching comments:', commentsError.message, commentsError.details, commentsError.hint);
-    redirect('/dashboard/tickets');
-  }
-
-  return (
-    <TicketDetailContent
-      initialTicket={ticket}
-      initialComments={comments || []}
-      organizationId={memberData.organization_id}
-    />
-  );
+  return <TicketDetailContent ticket={ticket} comments={comments} />;
 } 

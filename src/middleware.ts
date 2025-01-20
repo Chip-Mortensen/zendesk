@@ -13,8 +13,8 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
 
-  // Await the session check to ensure proper cookie handling
-  const { data: { session } } = await supabase.auth.getSession();
+  // Get the user's session
+  await supabase.auth.getSession();
   
   return res;
 }

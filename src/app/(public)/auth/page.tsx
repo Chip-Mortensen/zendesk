@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 
@@ -11,12 +11,6 @@ interface Organization {
   id: string;
   name: string;
   slug: string;
-}
-
-interface OrgMember {
-  organization_id: string;
-  role: 'admin' | 'customer';
-  organizations: Organization;
 }
 
 interface FormData {
@@ -36,7 +30,7 @@ interface FormErrors {
   general?: string;
 }
 
-export default function AuthPage() {
+function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<AuthMode>('signin');
@@ -60,10 +54,6 @@ export default function AuthPage() {
       // Fetch organizations when in customer mode
       fetchOrganizations();
     }
-    // Commenting out redirect
-    // else {
-    //   router.push('/');
-    // }
   }, [searchParams, router]);
 
   const fetchOrganizations = async () => {
@@ -86,15 +76,13 @@ export default function AuthPage() {
       }
       
       setOrganizations(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error details:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
       setErrors(prev => ({
         ...prev,
-        general: `Failed to load organizations: ${error.message || 'Unknown error'}`
+        general: `Failed to load organizations: ${error instanceof Error ? error.message : 'Unknown error'}`
       }));
     } finally {
       setIsLoadingOrgs(false);
@@ -320,15 +308,17 @@ export default function AuthPage() {
         if (memberData.role === 'admin') {
           router.push('/dashboard');
         } else {
-          // Type assertion since we know the structure
-          const orgData = memberData.organizations as { slug: string };
-          router.push(`/org/${orgData.slug}`);
+          const org = memberData.organizations as unknown as { slug: string };
+          if (!org || !org.slug) {
+            throw new Error('Invalid organization data structure');
+          }
+          router.push(`/org/${org.slug}`);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Auth error:', error);
       setErrors({
-        general: error.message || 'An error occurred. Please try again.'
+        general: error instanceof Error ? error.message : 'An error occurred. Please try again.'
       });
     } finally {
       setIsLoading(false);
@@ -501,5 +491,13 @@ export default function AuthPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <AuthContent />
+    </Suspense>
   );
 } 

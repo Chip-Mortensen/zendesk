@@ -5,15 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import Link from 'next/link';
 
-interface Organization {
-  name: string;
-}
-
-interface MemberData {
-  role: string;
-  organizations: Organization[];
-}
-
 interface UserData {
   name: string;
   email: string;
