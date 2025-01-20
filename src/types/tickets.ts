@@ -15,7 +15,7 @@ export type Ticket = {
 interface BaseTicketEvent {
   id: string;
   ticket_id: string;
-  event_type: 'comment' | 'status_change' | 'priority_change';
+  event_type: 'comment' | 'status_change' | 'priority_change' | 'note';
   created_at: string;
   created_by: string;
 }
@@ -40,8 +40,14 @@ export interface TicketPriorityChangeEvent extends BaseTicketEvent {
   new_priority: Ticket['priority'];
 }
 
+// Note event
+export interface TicketNoteEvent extends BaseTicketEvent {
+  event_type: 'note';
+  comment_text: string;
+}
+
 // Union type for all event types
-export type TicketEvent = TicketCommentEvent | TicketStatusChangeEvent | TicketPriorityChangeEvent;
+export type TicketEvent = TicketCommentEvent | TicketStatusChangeEvent | TicketPriorityChangeEvent | TicketNoteEvent;
 
 // Event with user info
 export type TicketEventWithUser = TicketEvent & {

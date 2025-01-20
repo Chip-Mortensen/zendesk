@@ -46,6 +46,17 @@ function CommentContent({ event }: { event: TicketEventWithUser & { event_type: 
   );
 }
 
+function NoteContent({ event }: { event: TicketEventWithUser & { event_type: 'note' } }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-xs font-semibold text-gray-500">Internal Note</div>
+      <p className="text-gray-700 whitespace-pre-wrap">
+        {event.comment_text}
+      </p>
+    </div>
+  );
+}
+
 export default function TimelineEvent({ event }: TimelineEventProps) {
   const getBorderColor = () => {
     switch (event.event_type) {
@@ -53,13 +64,19 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
         return 'border-blue-500';
       case 'priority_change':
         return 'border-yellow-500';
+      case 'note':
+        return 'border-gray-500';
       default:
         return '';
     }
   };
 
+  const getBackgroundColor = () => {
+    return event.event_type === 'note' ? 'bg-gray-50' : 'bg-white';
+  };
+
   return (
-    <div className={`bg-white shadow rounded-lg p-4 ${
+    <div className={`shadow rounded-lg p-4 ${getBackgroundColor()} ${
       event.event_type !== 'comment' ? `border-l-4 ${getBorderColor()}` : ''
     }`}>
       <div className="flex items-center justify-between mb-2">
@@ -75,6 +92,8 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
         <StatusChangeContent event={event as TicketEventWithUser & { event_type: 'status_change' }} />
       ) : event.event_type === 'priority_change' ? (
         <PriorityChangeContent event={event as TicketEventWithUser & { event_type: 'priority_change' }} />
+      ) : event.event_type === 'note' ? (
+        <NoteContent event={event as TicketEventWithUser & { event_type: 'note' }} />
       ) : (
         <CommentContent event={event as TicketEventWithUser & { event_type: 'comment' }} />
       )}

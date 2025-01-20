@@ -56,12 +56,14 @@ export default function OrgTicketDetailPage() {
         }
 
         // Then verify user belongs to the organization
-        const { error: memberError } = await supabase
+        const { data: memberData, error: memberError } = await supabase
           .from('org_members')
-          .select('role')
+          .select('role, organization_id')
           .eq('user_id', session.user.id)
           .eq('organization_id', orgData.id)
           .single();
+
+        console.log('Member data:', memberData, 'Member error:', memberError);
 
         if (memberError) {
           console.error('Member fetch error:', memberError);
@@ -78,6 +80,8 @@ export default function OrgTicketDetailPage() {
 
         // Fetch timeline events
         const { data: eventsData, error: eventsError } = await eventQueries.getTicketEvents(ticketId);
+        console.log('Timeline events:', eventsData, 'Events error:', eventsError);
+        
         if (eventsError) {
           throw new Error(eventsError.message);
         }

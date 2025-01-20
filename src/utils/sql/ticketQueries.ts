@@ -131,11 +131,14 @@ export const ticketQueries = {
 export const eventQueries = {
   // Fetch all events for a ticket
   async getTicketEvents(ticketId: string) {
+    console.log('Fetching events for ticket:', ticketId);
+    
     const { data, error } = await supabase
       .from('ticket_events')
       .select(`
         *,
-        users!created_by (
+        users!inner (
+          id,
           name,
           email
         )
@@ -143,6 +146,7 @@ export const eventQueries = {
       .eq('ticket_id', ticketId)
       .order('created_at', { ascending: true });
 
+    console.log('Events fetch result:', { data, error });
     return {
       data: data as TicketEventWithUser[] | null,
       error
@@ -156,7 +160,8 @@ export const eventQueries = {
       .insert([event])
       .select(`
         *,
-        users!created_by (
+        users!inner (
+          id,
           name,
           email
         )
@@ -203,7 +208,8 @@ export const subscriptionHelpers = {
               .from('ticket_events')
               .select(`
                 *,
-                users!created_by (
+                users!inner (
+                  id,
                   name,
                   email
                 )

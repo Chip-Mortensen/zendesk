@@ -9,19 +9,27 @@ import { useTicketTimelineSubscription } from '@/hooks/tickets/useTicketTimeline
 interface TicketTimelineProps {
   events: TicketEventWithUser[];
   ticketId: string;
+  isAdmin?: boolean;
 }
 
-export default function TicketTimeline({ events: initialEvents, ticketId }: TicketTimelineProps) {
-  const [events, setEvents] = useState<TicketEventWithUser[]>(initialEvents);
-  const [newComment, setNewComment] = useState('');
+export default function TicketTimeline({ events: initialEvents, ticketId, isAdmin = false }: TicketTimelineProps) {
+  const [events, setEvents] = useState<TicketEventWithUser[]>(
+    isAdmin ? initialEvents : initialEvents.filter(event => event.event_type !== 'note')
+  );
+  const [newMessage, setNewMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // Subscribe to real-time updates
-  useTicketTimelineSubscription(ticketId, setEvents);
+  useTicketTimelineSubscription(ticketId, (updater) => {
+    setEvents(currentEvents => {
+      const updatedEvents = updater(currentEvents);
+      return isAdmin ? updatedEvents : updatedEvents.filter(event => event.event_type !== 'note');
+    });
+  });
 
-  async function handleAddComment(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent, type: 'comment' | 'note' = 'comment') {
     e.preventDefault();
-    if (!newComment.trim()) return;
+    if (!newMessage.trim()) return;
 
     setSubmitting(true);
     try {
@@ -32,15 +40,15 @@ export default function TicketTimeline({ events: initialEvents, ticketId }: Tick
         .from('ticket_events')
         .insert([{
           ticket_id: ticketId,
-          event_type: 'comment',
-          comment_text: newComment.trim(),
+          event_type: type,
+          comment_text: newMessage.trim(),
           created_by: user.id,
         }]);
 
       if (error) throw error;
-      setNewComment('');
+      setNewMessage('');
     } catch (error) {
-      console.error('Error adding comment:', error);
+      console.error('Error adding message:', error);
     } finally {
       setSubmitting(false);
     }
@@ -55,29 +63,39 @@ export default function TicketTimeline({ events: initialEvents, ticketId }: Tick
         ))}
       </div>
 
-      <form onSubmit={handleAddComment} className="mt-6">
+      <form onSubmit={(e) => handleSubmit(e)} className="mt-6">
         <div>
-          <label htmlFor="comment" className="sr-only">
-            Add comment
+          <label htmlFor="message" className="sr-only">
+            Add comment or note
           </label>
           <textarea
-            id="comment"
-            name="comment"
+            id="message"
+            name="message"
             rows={3}
             className="shadow-sm block w-full focus:ring-blue-500 focus:border-blue-500 sm:text-sm border border-gray-300 rounded-md"
-            placeholder="Add a comment..."
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
+            placeholder={isAdmin ? "Add a comment or internal note..." : "Add a comment..."}
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
           />
         </div>
-        <div className="mt-3">
+        <div className="mt-3 flex justify-end space-x-3">
           <button
             type="submit"
-            disabled={submitting || !newComment.trim()}
+            disabled={submitting || !newMessage.trim()}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
           >
             {submitting ? 'Adding...' : 'Add Comment'}
           </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={(e) => handleSubmit(e, 'note')}
+              disabled={submitting || !newMessage.trim()}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
+            >
+              {submitting ? 'Adding...' : 'Add Internal Note'}
+            </button>
+          )}
         </div>
       </form>
     </div>

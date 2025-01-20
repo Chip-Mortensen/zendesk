@@ -42,6 +42,7 @@ export default function TicketDetailContent({
       <TicketTimeline
         events={events}
         ticketId={ticket.id}
+        isAdmin={false}
       />
     </div>
   );
