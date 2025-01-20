@@ -86,6 +86,7 @@ export default function TicketDetailPage() {
     <TicketDetailContent
       ticket={ticket}
       events={events}
+      onEventsUpdate={setEvents}
     />
   );
 } 

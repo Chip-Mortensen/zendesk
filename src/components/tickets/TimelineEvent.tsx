@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { TicketEventWithUser } from '@/types/tickets';
 import { formatCommentDate } from '@/utils/tickets/commentUtils';
 import PriorityBadge from './PriorityBadge';
+import { supabase } from '@/utils/supabase';
 
 interface TimelineEventProps {
   event: TicketEventWithUser;
@@ -38,6 +40,56 @@ function PriorityChangeContent({ event }: { event: TicketEventWithUser & { event
   );
 }
 
+function AssignmentChangeContent({ event }: { event: TicketEventWithUser & { event_type: 'assignment_change' } }) {
+  const [oldAssigneeName, setOldAssigneeName] = useState<string | null>(null);
+  const [newAssigneeName, setNewAssigneeName] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadUserNames() {
+      try {
+        if (event.old_assignee) {
+          const { data: oldUser } = await supabase
+            .from('users')
+            .select('name')
+            .eq('id', event.old_assignee)
+            .single();
+          if (oldUser) setOldAssigneeName(oldUser.name);
+        }
+
+        const { data: newUser } = await supabase
+          .from('users')
+          .select('name')
+          .eq('id', event.new_assignee)
+          .single();
+        if (newUser) setNewAssigneeName(newUser.name);
+      } catch (error) {
+        console.error('Error loading user names:', error);
+      }
+    }
+
+    loadUserNames();
+  }, [event.old_assignee, event.new_assignee]);
+
+  if (!newAssigneeName) {
+    return <p className="text-sm text-gray-700">Loading...</p>;
+  }
+
+  return (
+    <p className="text-sm text-gray-700">
+      {event.old_assignee ? (
+        <>
+          Changed assignee from <span className="font-medium">{oldAssigneeName || 'Unknown'}</span> to{' '}
+          <span className="font-medium">{newAssigneeName}</span>
+        </>
+      ) : (
+        <>
+          Assigned ticket to <span className="font-medium">{newAssigneeName}</span>
+        </>
+      )}
+    </p>
+  );
+}
+
 function CommentContent({ event }: { event: TicketEventWithUser & { event_type: 'comment' } }) {
   return (
     <p className="text-gray-700 whitespace-pre-wrap">
@@ -64,6 +116,8 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
         return 'border-blue-500';
       case 'priority_change':
         return 'border-yellow-500';
+      case 'assignment_change':
+        return 'border-purple-500';
       case 'note':
         return 'border-gray-500';
       default:
@@ -92,6 +146,8 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
         <StatusChangeContent event={event as TicketEventWithUser & { event_type: 'status_change' }} />
       ) : event.event_type === 'priority_change' ? (
         <PriorityChangeContent event={event as TicketEventWithUser & { event_type: 'priority_change' }} />
+      ) : event.event_type === 'assignment_change' ? (
+        <AssignmentChangeContent event={event as TicketEventWithUser & { event_type: 'assignment_change' }} />
       ) : event.event_type === 'note' ? (
         <NoteContent event={event as TicketEventWithUser & { event_type: 'note' }} />
       ) : (

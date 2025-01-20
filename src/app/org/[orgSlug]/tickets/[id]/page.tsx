@@ -132,6 +132,7 @@ export default function OrgTicketDetailPage() {
     <TicketDetailContent
       ticket={ticket}
       events={events}
+      onEventsUpdate={setEvents}
     />
   );
 } 

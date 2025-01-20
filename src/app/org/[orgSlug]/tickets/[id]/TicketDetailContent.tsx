@@ -4,17 +4,23 @@ import { useRouter } from 'next/navigation';
 import { Ticket, TicketEventWithUser } from '@/types/tickets';
 import TicketMetadata from '@/components/tickets/TicketMetadata';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
+import { useTicketTimelineSubscription } from '@/hooks/tickets/useTicketTimelineSubscription';
 
 interface Props {
   ticket: Ticket;
   events: TicketEventWithUser[];
+  onEventsUpdate: (updater: (events: TicketEventWithUser[]) => TicketEventWithUser[]) => void;
 }
 
 export default function TicketDetailContent({
   ticket,
-  events
+  events,
+  onEventsUpdate
 }: Props) {
   const router = useRouter();
+
+  // Subscribe to timeline events
+  useTicketTimelineSubscription(ticket.id, onEventsUpdate);
 
   return (
     <div className="space-y-6">
@@ -25,7 +31,7 @@ export default function TicketDetailContent({
         >
           ← Back
         </button>
-        <h1 className="text-2xl font-semibold text-gray-900">{ticket.title}</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 mb-4">{ticket.title}</h1>
         <TicketMetadata
           createdAt={ticket.created_at}
           status={ticket.status}

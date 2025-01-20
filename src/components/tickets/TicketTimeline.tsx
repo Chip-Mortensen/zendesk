@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TicketEventWithUser } from '@/types/tickets';
 import { supabase } from '@/utils/supabase';
 import TimelineEvent from '@/components/tickets/TimelineEvent';
@@ -10,21 +10,32 @@ interface TicketTimelineProps {
   events: TicketEventWithUser[];
   ticketId: string;
   isAdmin?: boolean;
+  onEventsUpdate?: (updater: (events: TicketEventWithUser[]) => TicketEventWithUser[]) => void;
 }
 
-export default function TicketTimeline({ events: initialEvents, ticketId, isAdmin = false }: TicketTimelineProps) {
-  const [events, setEvents] = useState<TicketEventWithUser[]>(
-    isAdmin ? initialEvents : initialEvents.filter(event => event.event_type !== 'note')
-  );
+export default function TicketTimeline({ events: initialEvents, ticketId, isAdmin = false, onEventsUpdate }: TicketTimelineProps) {
+  const [localEvents, setLocalEvents] = useState<TicketEventWithUser[]>(initialEvents);
+  const events = isAdmin ? localEvents : localEvents.filter(event => event.event_type !== 'note');
   const [newMessage, setNewMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Keep local events in sync with prop updates
+  useEffect(() => {
+    setLocalEvents(initialEvents);
+  }, [initialEvents]);
+
   // Subscribe to real-time updates
   useTicketTimelineSubscription(ticketId, (updater) => {
-    setEvents(currentEvents => {
+    // Always update local state
+    setLocalEvents(currentEvents => {
       const updatedEvents = updater(currentEvents);
-      return isAdmin ? updatedEvents : updatedEvents.filter(event => event.event_type !== 'note');
+      return updatedEvents;
     });
+    
+    // If parent provided update handler, call it too
+    if (onEventsUpdate) {
+      onEventsUpdate(updater);
+    }
   });
 
   async function handleSubmit(e: React.FormEvent, type: 'comment' | 'note' = 'comment') {

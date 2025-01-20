@@ -124,6 +124,52 @@ export const ticketQueries = {
     if (data && !data.success) {
       throw new Error(data.message || 'Failed to update ticket priority');
     }
+  },
+
+  // Update ticket assignment and create an assignment change event
+  async updateTicketAssignment(ticketId: string, newAssigneeId: string | null, userId: string) {
+    const { data: ticket } = await supabase
+      .from('tickets')
+      .select('assigned_to')
+      .eq('id', ticketId)
+      .single();
+
+    if (!ticket) throw new Error('Ticket not found');
+
+    const oldAssigneeId = ticket.assigned_to;
+
+    // Call the stored procedure
+    const { data, error } = await supabase.rpc('update_ticket_assignment', {
+      p_ticket_id: ticketId,
+      p_new_assignee: newAssigneeId,
+      p_old_assignee: oldAssigneeId,
+      p_user_id: userId
+    });
+
+    if (error) throw error;
+    
+    if (data && !data.success) {
+      throw new Error(data.message || 'Failed to update ticket assignment');
+    }
+  },
+
+  // Get eligible assignees for a ticket (org members)
+  async getEligibleAssignees(organizationId: string): Promise<Array<{ id: string; name: string; email: string }>> {
+    const { data, error } = await supabase
+      .from('org_members')
+      .select(`
+        users:user_id (
+          id,
+          name,
+          email
+        )
+      `)
+      .eq('organization_id', organizationId)
+      .neq('role', 'customer');
+
+    if (error) throw error;
+    
+    return (data?.map(member => member.users) ?? []).flat() as Array<{ id: string; name: string; email: string }>;
   }
 };
 
