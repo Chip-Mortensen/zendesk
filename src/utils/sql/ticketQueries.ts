@@ -97,6 +97,33 @@ export const ticketQueries = {
     if (data && !data.success) {
       throw new Error(data.message || 'Failed to update ticket status');
     }
+  },
+
+  // Update ticket priority and create a priority change event
+  async updateTicketPriority(ticketId: string, newPriority: Ticket['priority'], userId: string) {
+    const { data: ticket } = await supabase
+      .from('tickets')
+      .select('priority')
+      .eq('id', ticketId)
+      .single();
+
+    if (!ticket) throw new Error('Ticket not found');
+
+    const oldPriority = ticket.priority;
+
+    // Call the stored procedure
+    const { data, error } = await supabase.rpc('update_ticket_priority', {
+      p_ticket_id: ticketId,
+      p_new_priority: newPriority,
+      p_old_priority: oldPriority,
+      p_user_id: userId
+    });
+
+    if (error) throw error;
+    
+    if (data && !data.success) {
+      throw new Error(data.message || 'Failed to update ticket priority');
+    }
   }
 };
 

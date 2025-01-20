@@ -29,7 +29,9 @@ export default function TicketDetailContent({
         <TicketMetadata
           createdAt={ticket.created_at}
           status={ticket.status}
+          priority={ticket.priority}
           showStatusControl={false}
+          showPriorityControl={false}
         />
       </div>
 

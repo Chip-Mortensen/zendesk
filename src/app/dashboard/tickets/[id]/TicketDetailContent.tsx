@@ -29,6 +29,17 @@ export default function TicketDetailContent({
     }
   }
 
+  async function handlePriorityChange(newPriority: Ticket['priority']) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
+      await ticketQueries.updateTicketPriority(ticket.id, newPriority, user.id);
+    } catch (error) {
+      console.error('Error updating ticket priority:', error);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -42,8 +53,11 @@ export default function TicketDetailContent({
         <TicketMetadata
           createdAt={ticket.created_at}
           status={ticket.status}
+          priority={ticket.priority}
           showStatusControl
+          showPriorityControl
           onStatusChange={handleStatusChange}
+          onPriorityChange={handlePriorityChange}
         />
       </div>
 

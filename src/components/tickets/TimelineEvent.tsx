@@ -2,6 +2,7 @@
 
 import { TicketEventWithUser } from '@/types/tickets';
 import { formatCommentDate } from '@/utils/tickets/commentUtils';
+import PriorityBadge from './PriorityBadge';
 
 interface TimelineEventProps {
   event: TicketEventWithUser;
@@ -29,6 +30,14 @@ function StatusChangeContent({ event }: { event: TicketEventWithUser & { event_t
   );
 }
 
+function PriorityChangeContent({ event }: { event: TicketEventWithUser & { event_type: 'priority_change' } }) {
+  return (
+    <p className="text-sm text-gray-700">
+      Changed priority from <PriorityBadge priority={event.old_priority} /> to <PriorityBadge priority={event.new_priority} />
+    </p>
+  );
+}
+
 function CommentContent({ event }: { event: TicketEventWithUser & { event_type: 'comment' } }) {
   return (
     <p className="text-gray-700 whitespace-pre-wrap">
@@ -38,9 +47,20 @@ function CommentContent({ event }: { event: TicketEventWithUser & { event_type: 
 }
 
 export default function TimelineEvent({ event }: TimelineEventProps) {
+  const getBorderColor = () => {
+    switch (event.event_type) {
+      case 'status_change':
+        return 'border-blue-500';
+      case 'priority_change':
+        return 'border-yellow-500';
+      default:
+        return '';
+    }
+  };
+
   return (
     <div className={`bg-white shadow rounded-lg p-4 ${
-      event.event_type === 'status_change' ? 'border-l-4 border-blue-500' : ''
+      event.event_type !== 'comment' ? `border-l-4 ${getBorderColor()}` : ''
     }`}>
       <div className="flex items-center justify-between mb-2">
         <span className="font-medium text-gray-900">
@@ -53,6 +73,8 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
       
       {event.event_type === 'status_change' ? (
         <StatusChangeContent event={event as TicketEventWithUser & { event_type: 'status_change' }} />
+      ) : event.event_type === 'priority_change' ? (
+        <PriorityChangeContent event={event as TicketEventWithUser & { event_type: 'priority_change' }} />
       ) : (
         <CommentContent event={event as TicketEventWithUser & { event_type: 'comment' }} />
       )}

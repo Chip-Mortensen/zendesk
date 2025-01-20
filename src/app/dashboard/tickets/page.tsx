@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
+import PriorityBadge from '@/components/tickets/PriorityBadge';
 
 interface Ticket {
   id: string;
   title: string;
   description: string;
   status: 'open' | 'in_progress' | 'closed';
+  priority: 'low' | 'medium' | 'high';
   created_at: string;
   organization_id: string;
 }
@@ -147,6 +149,9 @@ export default function TicketsPage() {
                   Status
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Priority
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created
                 </th>
                 <th scope="col" className="relative px-6 py-3">
@@ -165,6 +170,9 @@ export default function TicketsPage() {
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
                       {ticket.status.replace('_', ' ')}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <PriorityBadge priority={ticket.priority} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(ticket.created_at).toLocaleDateString()}
