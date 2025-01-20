@@ -74,7 +74,6 @@ export default function CreateTicketModal({ isOpen, onClose, onTicketCreated, or
     setLoading(true);
 
     try {
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 

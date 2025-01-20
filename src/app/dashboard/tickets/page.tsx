@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
-import CreateTicketModal from '@/components/tickets/CreateTicketModal';
 
 interface Ticket {
   id: string;
@@ -15,54 +14,43 @@ interface Ticket {
   organization_id: string;
 }
 
-export default function CustomerTicketsPage() {
-  const params = useParams();
+export default function TicketsPage() {
   const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [orgSlug, setOrgSlug] = useState<string>('');
-  const [organizationId, setOrganizationId] = useState<string>('');
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-
-  // Set orgSlug once when component mounts
-  useEffect(() => {
-    const slug = params?.orgSlug;
-    if (typeof slug === 'string') {
-      setOrgSlug(slug);
-    }
-  }, [params?.orgSlug]);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!orgSlug) return;
-
     async function loadUserAndTickets() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           console.error('No session found');
-          router.push('/login');
+          router.push('/auth?type=admin');
           return;
         }
 
-        // First get the organization ID from the slug
-        const { data: orgData, error: orgError } = await supabase
-          .from('organizations')
-          .select('id')
-          .eq('slug', orgSlug)
+        // Get user's organization
+        const { data: memberData, error: memberError } = await supabase
+          .from('org_members')
+          .select('organization_id')
+          .eq('user_id', session.user.id)
+          .eq('role', 'admin')
           .single();
 
-        if (orgError || !orgData) {
-          console.error('Organization not found:', orgError);
+        if (memberError || !memberData) {
+          console.error('Error fetching member data:', memberError);
+          router.push('/auth?type=admin');
           return;
         }
 
-        setOrganizationId(orgData.id);
+        setOrganizationId(memberData.organization_id);
 
-        // Then get tickets for this organization
+        // Get tickets for this organization
         const { data: ticketsData, error: ticketsError } = await supabase
           .from('tickets')
           .select('*')
-          .eq('organization_id', orgData.id)
+          .eq('organization_id', memberData.organization_id)
           .order('created_at', { ascending: false });
 
         if (ticketsError) {
@@ -79,13 +67,13 @@ export default function CustomerTicketsPage() {
     }
 
     loadUserAndTickets();
-  }, [orgSlug, router]);
+  }, [router]);
 
   // Separate effect for realtime subscription
   useEffect(() => {
     if (!organizationId) return;
 
-    const channel = supabase.channel(`org-tickets-${organizationId}`);
+    const channel = supabase.channel(`admin-tickets-${organizationId}`);
     
     const subscription = channel
       .on(
@@ -138,20 +126,14 @@ export default function CustomerTicketsPage() {
   }
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-gray-900">My Tickets</h1>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          Create Ticket
-        </button>
+        <h1 className="text-2xl font-semibold text-gray-900">Support Tickets</h1>
       </div>
 
       {tickets.length === 0 ? (
         <div className="text-center py-12 bg-white shadow rounded-lg">
-          <p className="text-gray-500">No tickets found. Create your first ticket to get started.</p>
+          <p className="text-gray-500">No tickets found</p>
         </div>
       ) : (
         <div className="bg-white shadow rounded-lg">
@@ -189,7 +171,7 @@ export default function CustomerTicketsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <Link
-                      href={`/org/${orgSlug}/tickets/${ticket.id}`}
+                      href={`/dashboard/tickets/${ticket.id}`}
                       className="text-blue-600 hover:text-blue-900"
                     >
                       View details
@@ -200,15 +182,6 @@ export default function CustomerTicketsPage() {
             </tbody>
           </table>
         </div>
-      )}
-
-      {organizationId && (
-        <CreateTicketModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          onTicketCreated={() => setIsCreateModalOpen(false)}
-          organizationId={organizationId}
-        />
       )}
     </div>
   );

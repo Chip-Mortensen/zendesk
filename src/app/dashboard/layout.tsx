@@ -18,7 +18,9 @@ interface UserData {
   name: string;
   email: string;
   role: string;
-  organization: string;
+  organization: {
+    name: string;
+  };
 }
 
 export default function DashboardLayout({
@@ -29,50 +31,103 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     async function loadUserData() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
+        console.log('Dashboard - Checking session');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        console.log('Dashboard - Session check result:', { 
+          hasSession: !!session,
+          sessionError 
+        });
+
+        if (!session && mounted) {
+          console.log('Dashboard - No session, redirecting to auth');
           router.push('/auth?type=admin');
           return;
         }
 
+        if (!session) return;
+
         // Get user's organization membership
+        console.log('Dashboard - Fetching admin membership for user:', session.user.id);
         const { data: memberData, error: memberError } = await supabase
           .from('org_members')
-          .select(`
-            role,
-            organizations (
-              name
-            )
-          `)
+          .select('organization_id, role')
           .eq('user_id', session.user.id)
           .eq('role', 'admin')
           .single();
 
-        if (memberError || !memberData) {
-          console.error('Error fetching admin data:', memberError);
+        console.log('Dashboard - Membership check result:', {
+          memberData,
+          memberError
+        });
+
+        if ((memberError || !memberData) && mounted) {
+          console.error('Dashboard - Error fetching admin data:', memberError);
           router.push('/auth?type=admin');
           return;
         }
 
-        const typedMemberData = memberData as MemberData;
+        if (!memberData) return;
 
-        setUserData({
-          name: session.user.user_metadata.name || 'Admin User',
-          email: session.user.email || '',
-          role: typedMemberData.role,
-          organization: typedMemberData.organizations[0]?.name || '',
-        });
+        // Get organization details
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .select('name')
+          .eq('id', memberData.organization_id)
+          .single();
+
+        if (orgError || !orgData) {
+          console.error('Dashboard - Error fetching organization:', orgError);
+          router.push('/auth?type=admin');
+          return;
+        }
+
+        if (mounted) {
+          console.log('Dashboard - Setting user data with member data:', memberData);
+          const userData = {
+            name: session.user.user_metadata.name || 'Admin User',
+            email: session.user.email || '',
+            role: memberData.role,
+            organization: {
+              name: orgData.name,
+            },
+          };
+          console.log('Dashboard - Final user data:', userData);
+          setUserData(userData);
+        }
       } catch (error) {
-        console.error('Error in loadUserData:', error);
-        router.push('/auth?type=admin');
+        console.error('Dashboard - Error in loadUserData:', error);
+        if (mounted) {
+          router.push('/auth?type=admin');
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     }
 
     loadUserData();
+
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Dashboard - Auth state changed:', event, !!session);
+      if (event === 'SIGNED_OUT') {
+        router.push('/auth?type=admin');
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [router]);
 
   const navigation = [
@@ -93,12 +148,16 @@ export default function DashboardLayout({
     }
   };
 
-  if (!userData) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-500">Loading...</div>
       </div>
     );
+  }
+
+  if (!userData) {
+    return null;
   }
 
   return (
@@ -109,7 +168,7 @@ export default function DashboardLayout({
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
                 <Link href="/dashboard" className="text-xl font-bold text-gray-900">
-                  Support System
+                  {userData.organization.name}
                 </Link>
               </div>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
@@ -131,7 +190,7 @@ export default function DashboardLayout({
             <div className="flex items-center space-x-4">
               <div className="text-sm">
                 <div className="font-medium text-gray-900">{userData.name}</div>
-                <div className="text-gray-500">{userData.organization}</div>
+                <div className="text-gray-500">{userData.organization.name}</div>
               </div>
               <button
                 onClick={handleSignOut}

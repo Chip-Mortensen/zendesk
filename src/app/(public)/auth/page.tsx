@@ -59,10 +59,11 @@ export default function AuthPage() {
       setUserType('customer');
       // Fetch organizations when in customer mode
       fetchOrganizations();
-    } else {
-      // If no type specified, redirect to home
-      router.push('/');
     }
+    // Commenting out redirect
+    // else {
+    //   router.push('/');
+    // }
   }, [searchParams, router]);
 
   const fetchOrganizations = async () => {
@@ -220,6 +221,8 @@ export default function AuthPage() {
           console.log('Admin membership result:', { memberData, memberError });
           if (memberError) throw memberError;
           
+          // Add delay before redirect
+          await new Promise(resolve => setTimeout(resolve, 500));
           router.push('/dashboard');
         } else {
           console.log('Creating customer membership...', {
@@ -268,26 +271,51 @@ export default function AuthPage() {
             throw new Error('Failed to create organization membership - no data returned');
           }
 
-          // Only redirect after confirming membership was created
+          // Add delay before redirect
+          await new Promise(resolve => setTimeout(resolve, 500));
           router.push(`/org/${orgData.slug}`);
         }
       } else {
         // Handle sign in
-        const { data: { user }, error } = await supabase.auth.signInWithPassword({
+        console.log('Starting sign in...');
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
         });
 
+        console.log('Sign in result:', { data, error });
         if (error) throw error;
 
+        if (!data.session) {
+          throw new Error('No session returned from sign in');
+        }
+
+        // Explicitly set the session
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token
+        });
+
+        if (sessionError) {
+          console.error('Error setting session:', sessionError);
+          throw sessionError;
+        }
+
+        console.log('Session set successfully');
+
         // Get user's organization and role
+        console.log('Fetching user organization and role...');
         const { data: memberData, error: memberError } = await supabase
           .from('org_members')
           .select('organization_id, role, organizations!inner(slug)')
-          .eq('user_id', user!.id)
+          .eq('user_id', data.user!.id)
           .single();
 
+        console.log('Member data result:', { memberData, memberError });
         if (memberError) throw memberError;
+
+        // Add a small delay to ensure session is set before redirect
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         if (memberData.role === 'admin') {
           router.push('/dashboard');

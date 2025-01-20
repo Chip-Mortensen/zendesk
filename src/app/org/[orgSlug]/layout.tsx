@@ -73,8 +73,6 @@ export default function CustomerPortalLayout({
           .eq('slug', orgSlug)
           .single();
 
-        console.log('Organization lookup result:', { orgData, orgError });
-
         if (orgError || !orgData) {
           console.error('Organization not found:', orgError);
           router.push('/auth?type=customer');
