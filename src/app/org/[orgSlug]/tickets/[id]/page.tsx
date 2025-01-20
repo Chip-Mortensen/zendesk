@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ticketQueries, commentQueries, subscriptionHelpers } from '@/utils/sql/ticketQueries';
-import { Ticket, TicketCommentWithUser } from '@/types/tickets';
+import { ticketQueries, eventQueries, subscriptionHelpers } from '@/utils/sql/ticketQueries';
+import { Ticket, TicketEventWithUser } from '@/types/tickets';
 import { supabase } from '@/utils/supabase';
 import TicketDetailContent from './TicketDetailContent';
+import { useTicketTimelineSubscription } from '@/hooks/tickets/useTicketTimelineSubscription';
 
 export default function OrgTicketDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [comments, setComments] = useState<TicketCommentWithUser[]>([]);
+  const [events, setEvents] = useState<TicketEventWithUser[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -55,7 +56,7 @@ export default function OrgTicketDetailPage() {
         }
 
         // Then verify user belongs to the organization
-        const { data: memberData, error: memberError } = await supabase
+        const { error: memberError } = await supabase
           .from('org_members')
           .select('role')
           .eq('user_id', session.user.id)
@@ -63,46 +64,24 @@ export default function OrgTicketDetailPage() {
           .single();
 
         if (memberError) {
-          console.error('Member verification error:', memberError);
+          console.error('Member fetch error:', memberError);
           router.push('/auth');
           return;
         }
 
-        if (!memberData) {
-          console.error('User is not a member of this organization');
-          router.push('/auth');
-          return;
-        }
-        
-        // Fetch ticket data with org verification
+        // Finally fetch the ticket
         const { data: ticketData, error: ticketError } = await ticketQueries.getTicketById(ticketId, orgData.id);
-        
-        if (ticketError) {
-          console.error('Ticket fetch error:', ticketError);
-          throw new Error(ticketError.message || 'Error fetching ticket');
+        if (ticketError || !ticketData) {
+          throw new Error(ticketError?.message || 'Error fetching ticket');
         }
-        
-        if (!ticketData) {
-          console.log('No ticket found');
-          throw new Error('Ticket not found');
-        }
-
-        // Verify user has access to the ticket
-        if (ticketData.created_by !== session.user.id && memberData.role !== 'admin') {
-          console.error('User does not have access to this ticket');
-          throw new Error('Access denied');
-        }
-
-        console.log('Ticket loaded successfully');
         setTicket(ticketData);
 
-        // Fetch comments
-        const { data: commentsData, error: commentsError } = await commentQueries.getTicketComments(ticketId);
-        if (commentsError) {
-          console.error('Comments fetch error:', commentsError);
-          throw new Error(commentsError.message);
+        // Fetch timeline events
+        const { data: eventsData, error: eventsError } = await eventQueries.getTicketEvents(ticketId);
+        if (eventsError) {
+          throw new Error(eventsError.message);
         }
-        setComments(commentsData || []);
+        setEvents(eventsData || []);
       } catch (error) {
         console.error('Error in loadData:', error);
         router.push(`/org/${params.orgSlug}/tickets`);
@@ -114,11 +93,11 @@ export default function OrgTicketDetailPage() {
     loadData();
   }, [params.id, params.orgSlug, router]);
 
+  // Subscribe to ticket changes
   useEffect(() => {
     if (!ticket?.id) return;
 
-    // Subscribe to ticket changes
-    const ticketSubscription = subscriptionHelpers.subscribeToTicket(
+    const subscription = subscriptionHelpers.subscribeToTicket(
       ticket.id,
       (payload) => {
         if (payload.eventType === 'DELETE') {
@@ -129,35 +108,26 @@ export default function OrgTicketDetailPage() {
       }
     );
 
-    // Subscribe to comment changes
-    const commentSubscription = subscriptionHelpers.subscribeToComments(
-      ticket.id,
-      (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setComments(prev => [...prev, payload.new as TicketCommentWithUser]);
-        } else if (payload.eventType === 'UPDATE') {
-          setComments(prev => prev.map(comment => 
-            comment.id === payload.new.id ? payload.new as TicketCommentWithUser : comment
-          ));
-        } else if (payload.eventType === 'DELETE') {
-          setComments(prev => prev.filter(comment => comment.id !== payload.old.id));
-        }
-      }
-    );
-
     return () => {
-      ticketSubscription.unsubscribe();
-      commentSubscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, [ticket?.id, params.orgSlug, router]);
+
+  // Subscribe to timeline events
+  useTicketTimelineSubscription(ticket?.id || '', setEvents);
 
   if (loading) {
     return <div className="p-4">Loading ticket details...</div>;
   }
 
   if (!ticket) {
-    return <div className="p-4">Ticket not found</div>;
+    return null;
   }
 
-  return <TicketDetailContent ticket={ticket} comments={comments} />;
+  return (
+    <TicketDetailContent
+      ticket={ticket}
+      events={events}
+    />
+  );
 } 

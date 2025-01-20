@@ -1,18 +1,18 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Ticket, TicketCommentWithUser } from '@/types/tickets';
+import { Ticket, TicketEventWithUser } from '@/types/tickets';
 import TicketMetadata from '@/components/tickets/TicketMetadata';
-import TicketComments from '@/components/tickets/TicketComments';
+import TicketTimeline from '@/components/tickets/TicketTimeline';
 
 interface Props {
   ticket: Ticket;
-  comments: TicketCommentWithUser[];
+  events: TicketEventWithUser[];
 }
 
 export default function TicketDetailContent({
   ticket,
-  comments
+  events
 }: Props) {
   const router = useRouter();
 
@@ -37,8 +37,8 @@ export default function TicketDetailContent({
         <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
       </div>
 
-      <TicketComments
-        comments={comments}
+      <TicketTimeline
+        events={events}
         ticketId={ticket.id}
       />
     </div>

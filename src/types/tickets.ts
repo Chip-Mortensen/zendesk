@@ -11,26 +11,37 @@ export type Ticket = {
   updated_at: string;
 };
 
-export type TicketComment = {
+// Base event type
+interface BaseTicketEvent {
   id: string;
   ticket_id: string;
-  comment_text: string;
-  created_by: string;
+  event_type: 'comment' | 'status_change';
   created_at: string;
-  updated_at?: string;
-};
+  created_by: string;
+}
 
-export type TicketCommentWithUser = {
-  id: string;
-  ticket_id: string;
+// Comment event
+export interface TicketCommentEvent extends BaseTicketEvent {
+  event_type: 'comment';
   comment_text: string;
-  created_by: string;
-  created_at: string;
-  updated_at?: string;
+}
+
+// Status change event
+export interface TicketStatusChangeEvent extends BaseTicketEvent {
+  event_type: 'status_change';
+  old_status: Ticket['status'];
+  new_status: Ticket['status'];
+}
+
+// Union type for all event types
+export type TicketEvent = TicketCommentEvent | TicketStatusChangeEvent;
+
+// Event with user info
+export type TicketEventWithUser = TicketEvent & {
   users: {
     name: string;
     email: string;
-  } | null;
+  }
 };
 
 export interface Comment {

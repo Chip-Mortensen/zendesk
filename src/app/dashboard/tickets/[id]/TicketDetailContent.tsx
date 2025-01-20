@@ -1,26 +1,29 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Ticket, TicketCommentWithUser } from '@/types/tickets';
+import { Ticket, TicketEventWithUser } from '@/types/tickets';
 import { ticketQueries } from '@/utils/sql/ticketQueries';
 import TicketMetadata from '@/components/tickets/TicketMetadata';
-import TicketComments from '@/components/tickets/TicketComments';
+import TicketTimeline from '@/components/tickets/TicketTimeline';
+import { supabase } from '@/utils/supabase';
 
 interface Props {
   ticket: Ticket;
-  comments: TicketCommentWithUser[];
+  events: TicketEventWithUser[];
 }
 
 export default function TicketDetailContent({
   ticket,
-  comments
+  events
 }: Props) {
   const router = useRouter();
 
   async function handleStatusChange(newStatus: Ticket['status']) {
     try {
-      const { error } = await ticketQueries.updateTicket(ticket.id, { status: newStatus });
-      if (error) throw error;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
+      await ticketQueries.updateTicketStatus(ticket.id, newStatus, user.id);
     } catch (error) {
       console.error('Error updating ticket status:', error);
     }
@@ -48,8 +51,8 @@ export default function TicketDetailContent({
         <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
       </div>
 
-      <TicketComments
-        comments={comments}
+      <TicketTimeline
+        events={events}
         ticketId={ticket.id}
       />
     </div>

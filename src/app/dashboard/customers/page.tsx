@@ -11,39 +11,70 @@ interface Customer {
   created_at: string;
 }
 
+interface OrgMemberWithUser {
+  user_id: string;
+  role: string;
+  created_at: string;
+  users: {
+    name: string;
+    email: string;
+  }
+}
+
 export default function CustomersPage() {
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [organizationId, setOrganizationId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadCustomers() {
       try {
-        // Get current user's organization
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
 
-        const { data: memberData } = await supabase
-          .from('member_details')
-          .select('organization_id')
-          .eq('user_id', user.id)
+        // Get user's organization
+        const { data } = await supabase
+          .from('org_members')
+          .select(`
+            organization_id,
+            organizations!inner (
+              name
+            )
+          `)
+          .eq('user_id', session.user.id)
           .single();
 
-        if (memberData?.organization_id) {
-          setOrganizationId(memberData.organization_id);
-          
+        if (data?.organization_id) {
+          setOrganizationId(data.organization_id);
+
           // Get all customers for this organization
           const { data: customers } = await supabase
-            .from('member_details')
-            .select('user_id, name, email, role, created_at')
-            .eq('organization_id', memberData.organization_id)
+            .from('org_members')
+            .select(`
+              user_id,
+              role,
+              created_at,
+              users!inner (
+                name,
+                email
+              )
+            `)
+            .eq('organization_id', data.organization_id)
             .order('created_at', { ascending: false });
 
-          setCustomers(customers || []);
+          setCustomers(
+            ((customers as unknown) as OrgMemberWithUser[])?.map(c => ({
+              user_id: c.user_id,
+              name: c.users.name,
+              email: c.users.email,
+              role: c.role,
+              created_at: c.created_at
+            })) || []
+          );
         }
       } catch (error) {
         console.error('Error loading customers:', error);
@@ -66,7 +97,7 @@ export default function CustomersPage() {
       // Create user account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: inviteEmail.trim(),
-        password: Math.random().toString(36).slice(-8), // Generate random password
+        password: Math.random().toString(36).slice(-8),
         options: {
           data: {
             name: inviteName.trim(),
@@ -94,14 +125,30 @@ export default function CustomersPage() {
       setInviteEmail('');
       setInviteName('');
 
-      // Refresh customer list
+      // Refresh customer list with direct join
       const { data: customers } = await supabase
-        .from('member_details')
-        .select('user_id, name, email, role, created_at')
+        .from('org_members')
+        .select(`
+          user_id,
+          role,
+          created_at,
+          users!inner (
+            name,
+            email
+          )
+        `)
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
 
-      setCustomers(customers || []);
+      setCustomers(
+        ((customers as unknown) as OrgMemberWithUser[])?.map(c => ({
+          user_id: c.user_id,
+          name: c.users.name,
+          email: c.users.email,
+          role: c.role,
+          created_at: c.created_at
+        })) || []
+      );
     } catch (error) {
       console.error('Error inviting customer:', error);
       setError('Failed to invite customer. Please try again.');

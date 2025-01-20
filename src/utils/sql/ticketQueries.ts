@@ -1,6 +1,6 @@
 import { supabase } from '../supabase';
-import { Ticket, TicketComment, TicketCommentWithUser } from '@/types/tickets';
-import { SupabaseClient, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { Ticket, TicketEvent, TicketEventWithUser } from '@/types/tickets';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 // Ticket Queries
 export const ticketQueries = {
@@ -70,22 +70,45 @@ export const ticketQueries = {
     }
 
     return await query;
+  },
+
+  // Update ticket status and create a status change event
+  async updateTicketStatus(ticketId: string, newStatus: Ticket['status'], userId: string) {
+    const { data: ticket } = await supabase
+      .from('tickets')
+      .select('status')
+      .eq('id', ticketId)
+      .single();
+
+    if (!ticket) throw new Error('Ticket not found');
+
+    const oldStatus = ticket.status;
+
+    // Call the stored procedure
+    const { data, error } = await supabase.rpc('update_ticket_status', {
+      p_ticket_id: ticketId,
+      p_new_status: newStatus,
+      p_old_status: oldStatus,
+      p_user_id: userId
+    });
+
+    if (error) throw error;
+    
+    if (data && !data.success) {
+      throw new Error(data.message || 'Failed to update ticket status');
+    }
   }
 };
 
-// Comment Queries
-export const commentQueries = {
-  // Fetch comments for a ticket
-  async getTicketComments(ticketId: string) {
-    const response = await supabase
-      .from('ticket_comments')
+// Event Queries
+export const eventQueries = {
+  // Fetch all events for a ticket
+  async getTicketEvents(ticketId: string) {
+    const { data, error } = await supabase
+      .from('ticket_events')
       .select(`
-        id,
-        ticket_id,
-        comment_text,
-        created_at,
-        created_by,
-        users:created_by (
+        *,
+        users!created_by (
           name,
           email
         )
@@ -94,36 +117,24 @@ export const commentQueries = {
       .order('created_at', { ascending: true });
 
     return {
-      data: response.data as TicketCommentWithUser[] | null,
-      error: response.error
+      data: data as TicketEventWithUser[] | null,
+      error
     };
   },
 
-  // Create a new comment
-  async createComment(comment: Omit<TicketComment, 'id' | 'created_at'>) {
+  // Create a new event
+  async createEvent(event: Omit<TicketEvent, 'id' | 'created_at'>) {
     return await supabase
-      .from('ticket_comments')
-      .insert([comment])
-      .select()
+      .from('ticket_events')
+      .insert([event])
+      .select(`
+        *,
+        users!created_by (
+          name,
+          email
+        )
+      `)
       .single();
-  },
-
-  // Update a comment
-  async updateComment(commentId: string, updates: Partial<TicketComment>) {
-    return await supabase
-      .from('ticket_comments')
-      .update(updates)
-      .eq('id', commentId)
-      .select()
-      .single();
-  },
-
-  // Delete a comment
-  async deleteComment(commentId: string) {
-    return await supabase
-      .from('ticket_comments')
-      .delete()
-      .eq('id', commentId);
   }
 };
 
@@ -146,68 +157,46 @@ export const subscriptionHelpers = {
       .subscribe();
   },
 
-  // Subscribe to ticket comments
-  subscribeToComments(ticketId: string, callback: (payload: RealtimePostgresChangesPayload<TicketComment>) => void) {
+  // Subscribe to ticket events
+  subscribeToEvents(ticketId: string, callback: (payload: RealtimePostgresChangesPayload<TicketEventWithUser>) => void) {
     return supabase
-      .channel(`comments-${ticketId}`)
+      .channel(`events-${ticketId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'ticket_comments',
-          filter: `ticket_id=eq.${ticketId}`
+          table: 'ticket_events',
+          filter: `ticket_id=eq.${ticketId}`,
         },
-        callback
+        async (payload) => {
+          // For INSERT and UPDATE events, fetch the full event data with user info
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const { data } = await supabase
+              .from('ticket_events')
+              .select(`
+                *,
+                users!created_by (
+                  name,
+                  email
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
+            
+            if (data) {
+              callback({
+                ...payload,
+                new: data
+              } as RealtimePostgresChangesPayload<TicketEventWithUser>);
+              return;
+            }
+          }
+          
+          // For DELETE events, just pass through the payload
+          callback(payload as RealtimePostgresChangesPayload<TicketEventWithUser>);
+        }
       )
       .subscribe();
-  }
-};
-
-export const getTicketComments = async (supabase: SupabaseClient, ticketId: string): Promise<TicketCommentWithUser[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('ticket_comments')
-      .select(`
-        *,
-        users (
-          name,
-          email
-        )
-      `)
-      .eq('ticket_id', ticketId)
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-    return data || [];
-  } catch (error: unknown) {
-    console.error('Error fetching ticket comments:', error);
-    throw error;
-  }
-};
-
-export const createTicketComment = async (
-  supabase: SupabaseClient, 
-  ticketId: string, 
-  content: string
-): Promise<TicketComment> => {
-  try {
-    const { data, error } = await supabase
-      .from('ticket_comments')
-      .insert([
-        {
-          ticket_id: ticketId,
-          content: content,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) throw error;
-    if (!data) throw new Error('No data returned from comment creation');
-    return data;
-  } catch (error: unknown) {
-    console.error('Error creating ticket comment:', error);
-    throw error;
   }
 }; 

@@ -1,23 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { TicketCommentWithUser } from '@/types/tickets';
-import { formatCommentDate } from '@/utils/tickets/commentUtils';
-import { commentQueries } from '@/utils/sql/ticketQueries';
+import { TicketEventWithUser } from '@/types/tickets';
 import { supabase } from '@/utils/supabase';
+import TimelineEvent from '@/components/tickets/TimelineEvent';
+import { useTicketTimelineSubscription } from '@/hooks/tickets/useTicketTimelineSubscription';
 
-interface TicketCommentsProps {
-  comments: TicketCommentWithUser[];
+interface TicketTimelineProps {
+  events: TicketEventWithUser[];
   ticketId: string;
 }
 
-function getDisplayName(comment: TicketCommentWithUser): string {
-  return comment.users?.name || 'Unknown User';
-}
-
-export default function TicketComments({ comments, ticketId }: TicketCommentsProps) {
+export default function TicketTimeline({ events: initialEvents, ticketId }: TicketTimelineProps) {
+  const [events, setEvents] = useState<TicketEventWithUser[]>(initialEvents);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Subscribe to real-time updates
+  useTicketTimelineSubscription(ticketId, setEvents);
 
   async function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
@@ -28,11 +28,14 @@ export default function TicketComments({ comments, ticketId }: TicketCommentsPro
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      const { error } = await commentQueries.createComment({
-        ticket_id: ticketId,
-        comment_text: newComment.trim(),
-        created_by: user.id,
-      });
+      const { error } = await supabase
+        .from('ticket_events')
+        .insert([{
+          ticket_id: ticketId,
+          event_type: 'comment',
+          comment_text: newComment.trim(),
+          created_by: user.id,
+        }]);
 
       if (error) throw error;
       setNewComment('');
@@ -45,20 +48,10 @@ export default function TicketComments({ comments, ticketId }: TicketCommentsPro
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-gray-900">Comments</h2>
+      <h2 className="text-xl font-semibold text-gray-900">Timeline</h2>
       <div className="space-y-4">
-        {comments.map((comment) => (
-          <div key={comment.id} className="bg-white shadow rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-medium text-gray-900">
-                {getDisplayName(comment)}
-              </span>
-              <span className="text-sm text-gray-500" title={new Date(comment.created_at).toLocaleString()}>
-                {formatCommentDate(comment.created_at)}
-              </span>
-            </div>
-            <p className="text-gray-700 whitespace-pre-wrap">{comment.comment_text}</p>
-          </div>
+        {events.map((event) => (
+          <TimelineEvent key={event.id} event={event} />
         ))}
       </div>
 
