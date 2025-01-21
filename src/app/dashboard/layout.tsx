@@ -10,7 +10,9 @@ interface UserData {
   email: string;
   role: string;
   organization: {
+    id: string;
     name: string;
+    slug: string;
   };
 }
 
@@ -70,7 +72,7 @@ export default function DashboardLayout({
         // Get organization details
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
-          .select('name')
+          .select('id, name, slug')
           .eq('id', memberData.organization_id)
           .single();
 
@@ -87,11 +89,45 @@ export default function DashboardLayout({
             email: session.user.email || '',
             role: memberData.role,
             organization: {
+              id: orgData.id,
               name: orgData.name,
+              slug: orgData.slug,
             },
           };
           console.log('Dashboard - Final user data:', userData);
           setUserData(userData);
+
+          // Set up real-time subscription for organization changes
+          const channel = supabase.channel(`org-changes-${memberData.organization_id}`);
+          channel
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'organizations',
+                filter: `id=eq.${memberData.organization_id}`,
+              },
+              (payload) => {
+                if (payload.eventType === 'UPDATE' && mounted) {
+                  console.log('Organization updated:', payload);
+                  setUserData((prev) => ({
+                    ...prev!,
+                    organization: {
+                      ...prev!.organization,
+                      name: payload.new.name,
+                      slug: payload.new.slug,
+                    },
+                  }));
+                }
+              }
+            )
+            .subscribe();
+
+          // Clean up subscription
+          return () => {
+            channel.unsubscribe();
+          };
         }
       } catch (error) {
         console.error('Dashboard - Error in loadUserData:', error);

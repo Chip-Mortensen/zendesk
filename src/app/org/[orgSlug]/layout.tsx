@@ -9,6 +9,7 @@ interface UserData {
   email: string;
   organization: {
     name: string;
+    slug: string;
   };
 }
 
@@ -23,6 +24,7 @@ export default function CustomerPortalLayout({
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [orgSlug, setOrgSlug] = useState<string>('');
+  const [pendingSlugUpdate, setPendingSlugUpdate] = useState<string | null>(null);
 
   // Set orgSlug once when component mounts
   useEffect(() => {
@@ -31,6 +33,15 @@ export default function CustomerPortalLayout({
       setOrgSlug(slug);
     }
   }, [params?.orgSlug]);
+
+  // Handle URL updates in a separate effect
+  useEffect(() => {
+    if (pendingSlugUpdate && userData?.organization.slug && pendingSlugUpdate !== userData.organization.slug) {
+      const newPath = pathname.replace(`/org/${userData.organization.slug}`, `/org/${pendingSlugUpdate}`);
+      router.replace(newPath);
+      setPendingSlugUpdate(null);
+    }
+  }, [pendingSlugUpdate, userData?.organization.slug, pathname, router]);
 
   useEffect(() => {
     if (!orgSlug) return;
@@ -52,7 +63,7 @@ export default function CustomerPortalLayout({
         // First get the organization ID from the slug
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
-          .select('id, name')
+          .select('id, name, slug')
           .eq('slug', orgSlug)
           .single();
 
@@ -90,8 +101,66 @@ export default function CustomerPortalLayout({
           email: session.user.email || '',
           organization: {
             name: orgData.name,
+            slug: orgData.slug,
           },
         });
+
+        // Set up real-time subscription for organization changes
+        const channel = supabase.channel(`org-changes-${orgData.id}`);
+        channel
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'organizations',
+              filter: `id=eq.${orgData.id}`,
+            },
+            (payload) => {
+              if (payload.eventType === 'UPDATE') {
+                console.log('Organization updated:', payload);
+                // First verify the new organization exists and is accessible
+                supabase
+                  .from('organizations')
+                  .select('id, name, slug')
+                  .eq('slug', payload.new.slug)
+                  .single()
+                  .then(({ data: newOrgData, error: newOrgError }) => {
+                    if (!newOrgError && newOrgData) {
+                      // Set the pending slug update
+                      if (payload.new.slug !== userData?.organization.slug) {
+                        setPendingSlugUpdate(payload.new.slug);
+                      }
+                      setUserData((prev) => ({
+                        ...prev!,
+                        organization: {
+                          ...prev!.organization,
+                          name: payload.new.name,
+                          slug: payload.new.slug,
+                        },
+                      }));
+                    } else {
+                      console.error('Could not verify new organization slug:', newOrgError);
+                      // Keep the old slug but update the name
+                      setUserData((prev) => ({
+                        ...prev!,
+                        organization: {
+                          ...prev!.organization,
+                          name: payload.new.name,
+                        },
+                      }));
+                    }
+                  });
+              }
+            }
+          )
+          .subscribe();
+
+        // Clean up subscription
+        return () => {
+          channel.unsubscribe();
+        };
+
       } catch (error) {
         console.error('Error in getUserData:', error);
         router.push('/auth?type=customer');
@@ -112,9 +181,9 @@ export default function CustomerPortalLayout({
   }
 
   const navigation = [
-    { name: 'My Tickets', href: `/org/${orgSlug}/tickets` },
-    { name: 'Knowledge Base', href: `/org/${orgSlug}/kb` },
-    { name: 'Chat', href: `/org/${orgSlug}/chat` },
+    { name: 'My Tickets', href: `/org/${userData?.organization.slug}/tickets` },
+    { name: 'Knowledge Base', href: `/org/${userData?.organization.slug}/kb` },
+    { name: 'Chat', href: `/org/${userData?.organization.slug}/chat` },
   ];
 
   const handleSignOut = async () => {
@@ -131,7 +200,7 @@ export default function CustomerPortalLayout({
             <div className="flex">
               <div className="flex flex-shrink-0 items-center">
                 <a 
-                  href={`/org/${orgSlug}`}
+                  href={`/org/${userData?.organization.slug}`}
                   className="text-xl font-bold text-gray-900 hover:text-gray-700 transition-colors"
                 >
                   {userData?.organization.name}
