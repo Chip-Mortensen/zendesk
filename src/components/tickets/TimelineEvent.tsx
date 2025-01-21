@@ -109,6 +109,17 @@ function NoteContent({ event }: { event: TicketEventWithUser & { event_type: 'no
   );
 }
 
+function TagChangeContent({ event }: { event: TicketEventWithUser & { event_type: 'tag_change' } }) {
+  return (
+    <p className="text-sm text-gray-700">
+      Changed tag from{' '}
+      <span className="font-medium">{event.old_value || 'none'}</span>
+      {' '}to{' '}
+      <span className="font-medium">{event.new_value || 'none'}</span>
+    </p>
+  );
+}
+
 export default function TimelineEvent({ event }: TimelineEventProps) {
   const getBorderColor = () => {
     switch (event.event_type) {
@@ -120,6 +131,8 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
         return 'border-purple-500';
       case 'note':
         return 'border-gray-500';
+      case 'tag_change':
+        return 'border-blue-500';
       default:
         return '';
     }
@@ -129,10 +142,29 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
     return event.event_type === 'note' ? 'bg-gray-50' : 'bg-white';
   };
 
+  const renderEventContent = () => {
+    switch (event.event_type) {
+      case 'status_change':
+        return <StatusChangeContent event={event} />;
+      case 'priority_change':
+        return <PriorityChangeContent event={event} />;
+      case 'assignment_change':
+        return <AssignmentChangeContent event={event} />;
+      case 'note':
+        return <NoteContent event={event} />;
+      case 'tag_change':
+        return <TagChangeContent event={event} />;
+      case 'comment':
+        return <CommentContent event={event} />;
+      default:
+        return null;
+    }
+  };
+
+  const shouldShowBorder = event.event_type !== 'comment';
+
   return (
-    <div className={`shadow rounded-lg p-4 ${getBackgroundColor()} ${
-      event.event_type !== 'comment' ? `border-l-4 ${getBorderColor()}` : ''
-    }`}>
+    <div className={`shadow rounded-lg p-4 ${getBackgroundColor()} ${shouldShowBorder ? `border-l-4 ${getBorderColor()}` : ''}`}>
       <div className="flex items-center justify-between mb-2">
         <span className="font-medium text-gray-900">
           {getDisplayName(event)}
@@ -141,18 +173,7 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
           {formatCommentDate(event.created_at)}
         </span>
       </div>
-      
-      {event.event_type === 'status_change' ? (
-        <StatusChangeContent event={event as TicketEventWithUser & { event_type: 'status_change' }} />
-      ) : event.event_type === 'priority_change' ? (
-        <PriorityChangeContent event={event as TicketEventWithUser & { event_type: 'priority_change' }} />
-      ) : event.event_type === 'assignment_change' ? (
-        <AssignmentChangeContent event={event as TicketEventWithUser & { event_type: 'assignment_change' }} />
-      ) : event.event_type === 'note' ? (
-        <NoteContent event={event as TicketEventWithUser & { event_type: 'note' }} />
-      ) : (
-        <CommentContent event={event as TicketEventWithUser & { event_type: 'comment' }} />
-      )}
+      {renderEventContent()}
     </div>
   );
 } 

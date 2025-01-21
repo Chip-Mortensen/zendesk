@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Ticket } from '@/types/tickets';
 import { ticketQueries } from '@/utils/sql/ticketQueries';
+import { supabase } from '@/utils/supabase';
 
 interface User {
   id: string;
@@ -27,6 +28,10 @@ export default function TicketActions({
 }: TicketActionsProps) {
   const [assignees, setAssignees] = useState<User[]>([]);
   const [loadingAssignees, setLoadingAssignees] = useState(true);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [loadingTags, setLoadingTags] = useState(true);
+  const [newTag, setNewTag] = useState('');
+  const [isAddingNewTag, setIsAddingNewTag] = useState(false);
 
   useEffect(() => {
     async function loadAssignees() {
@@ -45,10 +50,54 @@ export default function TicketActions({
       }
     }
 
+    async function loadTags() {
+      try {
+        const tags = await ticketQueries.getDistinctTags(ticket.organization_id);
+        setAvailableTags(tags);
+      } catch (error) {
+        console.error('Error loading tags:', error);
+      } finally {
+        setLoadingTags(false);
+      }
+    }
+
     if (ticket.organization_id) {
       loadAssignees();
+      loadTags();
     }
   }, [ticket.organization_id]);
+
+  const handleTagChange = async (value: string) => {
+    if (value === 'new') {
+      setIsAddingNewTag(true);
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
+      await ticketQueries.updateTicketTag(ticket.id, value, user.id);
+    } catch (error) {
+      console.error('Error updating tag:', error);
+    }
+  };
+
+  const handleNewTagSubmit = async () => {
+    if (!newTag.trim()) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
+      await ticketQueries.updateTicketTag(ticket.id, newTag.trim(), user.id);
+      setAvailableTags(prev => [...prev, newTag.trim()]);
+      setNewTag('');
+      setIsAddingNewTag(false);
+    } catch (error) {
+      console.error('Error adding new tag:', error);
+    }
+  };
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
@@ -120,6 +169,52 @@ export default function TicketActions({
                   {assignee.name}
                 </option>
               ))}
+            </select>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <label htmlFor="tag" className="block text-sm font-medium text-gray-700">
+            Tag
+          </label>
+          {loadingTags ? (
+            <div className="text-sm text-gray-500 w-[180px] text-right">Loading...</div>
+          ) : isAddingNewTag ? (
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                className="w-[140px] h-9 rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                placeholder="New tag"
+              />
+              <button
+                onClick={handleNewTagSubmit}
+                className="h-9 px-3 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
+              >
+                Add
+              </button>
+              <button
+                onClick={() => setIsAddingNewTag(false)}
+                className="h-9 px-3 text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <select
+              id="tag"
+              value={ticket.tag || ''}
+              onChange={(e) => handleTagChange(e.target.value)}
+              className={selectClassName}
+            >
+              <option value="">No tag</option>
+              {availableTags.map((tag) => (
+                <option key={tag} value={tag}>
+                  {tag}
+                </option>
+              ))}
+              <option value="new">+ Add new tag</option>
             </select>
           )}
         </div>

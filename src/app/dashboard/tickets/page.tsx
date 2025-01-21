@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
 import PriorityBadge from '@/components/tickets/PriorityBadge';
+import TagBadge from '@/components/tickets/TagBadge';
 
 interface Ticket {
   id: string;
@@ -14,6 +15,7 @@ interface Ticket {
   priority: 'low' | 'medium' | 'high';
   created_at: string;
   organization_id: string;
+  tag: string;
 }
 
 export default function TicketsPage() {
@@ -152,6 +154,9 @@ export default function TicketsPage() {
                   Priority
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tag
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created
                 </th>
                 <th scope="col" className="relative px-6 py-3">
@@ -173,6 +178,9 @@ export default function TicketsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <PriorityBadge priority={ticket.priority} />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <TagBadge tag={ticket.tag} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(ticket.created_at).toLocaleDateString()}

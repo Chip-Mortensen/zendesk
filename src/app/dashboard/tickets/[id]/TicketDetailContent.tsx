@@ -68,6 +68,7 @@ export default function TicketDetailContent({
           createdAt={ticket.created_at}
           status={ticket.status}
           priority={ticket.priority}
+          tag={ticket.tag}
           showStatusControl={false}
           showPriorityControl={false}
         />

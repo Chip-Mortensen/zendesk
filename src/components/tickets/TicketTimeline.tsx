@@ -15,7 +15,12 @@ interface TicketTimelineProps {
 
 export default function TicketTimeline({ events: initialEvents, ticketId, isAdmin = false, onEventsUpdate }: TicketTimelineProps) {
   const [localEvents, setLocalEvents] = useState<TicketEventWithUser[]>(initialEvents);
-  const events = isAdmin ? localEvents : localEvents.filter(event => event.event_type !== 'note');
+  const filteredEvents = localEvents.filter(event => {
+    // Show all events to admins
+    if (isAdmin) return true;
+    // For non-admins, hide tag changes and notes
+    return !['tag_change', 'note'].includes(event.event_type);
+  });
   const [newMessage, setNewMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -69,7 +74,7 @@ export default function TicketTimeline({ events: initialEvents, ticketId, isAdmi
     <div className="space-y-4">
       <h2 className="text-xl font-semibold text-gray-900">Timeline</h2>
       <div className="space-y-4">
-        {events.map((event) => (
+        {filteredEvents.map((event) => (
           <TimelineEvent key={event.id} event={event} />
         ))}
       </div>
