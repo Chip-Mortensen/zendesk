@@ -4,20 +4,15 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
-
-interface Article {
-  id: string;
-  title: string;
-  content: string;
-  category: string;
-  created_at: string;
-  organization_id: string;
-}
+import { KBArticle } from '@/types/kb';
+import { kbQueries, subscriptionHelpers } from '@/utils/sql/kbQueries';
+import { getPlainTextFromMarkdown } from '@/utils/markdown';
 
 export default function KnowledgeBasePage() {
   const router = useRouter();
-  const [articles, setArticles] = useState<Article[]>([]);
+  const [articles, setArticles] = useState<KBArticle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadUserAndArticles() {
@@ -43,12 +38,10 @@ export default function KnowledgeBasePage() {
           return;
         }
 
+        setOrganizationId(memberData.organization_id);
+
         // Get articles for this organization
-        const { data: articlesData, error: articlesError } = await supabase
-          .from('kb_articles')
-          .select('*')
-          .eq('organization_id', memberData.organization_id)
-          .order('created_at', { ascending: false });
+        const { data: articlesData, error: articlesError } = await kbQueries.getOrgArticles(memberData.organization_id);
 
         if (articlesError) {
           console.error('Error fetching articles:', articlesError);
@@ -65,6 +58,32 @@ export default function KnowledgeBasePage() {
 
     loadUserAndArticles();
   }, [router]);
+
+  // Set up realtime subscription
+  useEffect(() => {
+    if (!organizationId) return;
+
+    const subscription = subscriptionHelpers.subscribeToKBArticles(
+      organizationId,
+      (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setArticles(current => [payload.new as KBArticle, ...current]);
+        } else if (payload.eventType === 'DELETE') {
+          setArticles(current => current.filter(article => article.id !== payload.old.id));
+        } else if (payload.eventType === 'UPDATE') {
+          setArticles(current =>
+            current.map(article =>
+              article.id === payload.new.id ? { ...article, ...payload.new } : article
+            )
+          );
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [organizationId]);
 
   if (loading) {
     return <div className="text-center py-12">Loading knowledge base...</div>;
@@ -92,14 +111,18 @@ export default function KnowledgeBasePage() {
             <Link
               key={article.id}
               href={`/dashboard/kb/${article.id}`}
-              className="block bg-white shadow rounded-lg hover:shadow-md transition-shadow"
+              className="block bg-white shadow rounded-lg hover:shadow-md transition-shadow h-full"
             >
-              <div className="p-6">
-                <div className="text-sm text-blue-600 mb-2">{article.category}</div>
-                <h2 className="text-lg font-medium text-gray-900 mb-2">{article.title}</h2>
-                <p className="text-gray-500 text-sm line-clamp-3">{article.content}</p>
-                <div className="mt-4 text-xs text-gray-400">
-                  {new Date(article.created_at).toLocaleDateString()}
+              <div className="p-6 flex flex-col h-full">
+                <div className="flex-grow">
+                  <h2 className="text-lg font-medium text-gray-900 mb-2">{article.title}</h2>
+                  <p className="text-gray-500 text-sm line-clamp-3">
+                    {getPlainTextFromMarkdown(article.content)}
+                  </p>
+                </div>
+                <div className="mt-4 flex justify-between items-center text-xs text-gray-400">
+                  <span>{article.author_name}</span>
+                  <span>{new Date(article.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
             </Link>
