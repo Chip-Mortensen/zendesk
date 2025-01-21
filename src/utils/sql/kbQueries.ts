@@ -3,9 +3,16 @@ import { KBArticle, CreateKBArticleInput, UpdateKBArticleInput } from '@/types/k
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export const kbQueries = {
-  // Get all articles for an organization
+  // Get all published articles for an organization
   async getOrgArticles(organizationId: string) {
     return await supabase.rpc('get_kb_articles', {
+      p_organization_id: organizationId
+    });
+  },
+
+  // Get all draft articles for an organization
+  async getDraftArticles(organizationId: string) {
+    return await supabase.rpc('get_kb_draft_articles', {
       p_organization_id: organizationId
     });
   },
@@ -42,7 +49,7 @@ export const kbQueries = {
     };
   },
 
-  // Create a new article
+  // Create a new article (defaults to draft status)
   async createArticle(article: CreateKBArticleInput) {
     console.log('kbQueries.createArticle called with:', article);
     
@@ -61,7 +68,7 @@ export const kbQueries = {
     }
 
     console.log('Processed data from create_kb_article:', response.data);
-    return response.data;
+    return response.data[0];
   },
 
   // Update an article
@@ -77,55 +84,74 @@ export const kbQueries = {
     return data;
   },
 
+  // Publish an article
+  async publishArticle(articleId: string, organizationId: string, userId: string, title?: string, content?: string) {
+    const { data, error } = await supabase.rpc('publish_kb_article', {
+      p_article_id: articleId,
+      p_organization_id: organizationId,
+      p_user_id: userId,
+      p_title: title,
+      p_content: content
+    });
+
+    if (error) throw error;
+    return data[0];
+  },
+
+  // Unpublish an article (revert to draft)
+  async unpublishArticle(articleId: string, organizationId: string, userId: string) {
+    const { data, error } = await supabase.rpc('unpublish_kb_article', {
+      p_article_id: articleId,
+      p_organization_id: organizationId,
+      p_user_id: userId
+    });
+
+    if (error) throw error;
+    return data[0];
+  },
+
   // Delete an article (storage cleanup will happen via cascade)
-  async deleteArticle(articleId: string, organizationId?: string) {
+  async deleteArticle(articleId: string, organizationId: string, userId: string) {
     // 1. Delete all files and folder from storage
-    if (organizationId) {
-      // First list all files in the article folder
-      const { data: files, error: listError } = await supabase.storage
-        .from('kb_attachments')
-        .list(`${organizationId}/${articleId}`);
+    // First list all files in the article folder
+    const { data: files, error: listError } = await supabase.storage
+      .from('kb_attachments')
+      .list(`${organizationId}/${articleId}`);
 
-      if (listError) {
-        console.error('Error listing files:', listError);
-      } else {
-        // Delete all files found (if any)
-        if (files && files.length > 0) {
-          const filePaths = files.map(file => `${organizationId}/${articleId}/${file.name}`);
-          const { error: filesError } = await supabase.storage
-            .from('kb_attachments')
-            .remove(filePaths);
-
-          if (filesError) {
-            console.error('Error deleting files:', filesError);
-          }
-        }
-
-        // Delete the folder itself
-        const { error: folderError } = await supabase.storage
+    if (listError) {
+      console.error('Error listing files:', listError);
+    } else {
+      // Delete all files found (if any)
+      if (files && files.length > 0) {
+        const filePaths = files.map(file => `${organizationId}/${articleId}/${file.name}`);
+        const { error: filesError } = await supabase.storage
           .from('kb_attachments')
-          .remove([`${organizationId}/${articleId}/`]);
+          .remove(filePaths);
 
-        if (folderError) {
-          console.error('Error deleting folder:', folderError);
+        if (filesError) {
+          console.error('Error deleting files:', filesError);
         }
+      }
+
+      // Delete the folder itself
+      const { error: folderError } = await supabase.storage
+        .from('kb_attachments')
+        .remove([`${organizationId}/${articleId}/`]);
+
+      if (folderError) {
+        console.error('Error deleting folder:', folderError);
       }
     }
 
-    // 2. Delete the article (attachments will be deleted via cascade)
-    const query = supabase
-      .from('kb_articles')
-      .delete()
-      .eq('id', articleId);
-    
-    if (organizationId) {
-      query.eq('organization_id', organizationId);
-    }
+    // 2. Delete the article using the RPC function
+    const { data, error: deleteError } = await supabase.rpc('delete_kb_article', {
+      p_article_id: articleId,
+      p_organization_id: organizationId,
+      p_user_id: userId
+    });
 
-    const { error: deleteError } = await query;
     if (deleteError) throw deleteError;
-
-    return { success: true };
+    return data[0];
   }
 };
 
@@ -133,6 +159,7 @@ export const kbQueries = {
 export const subscriptionHelpers = {
   // Subscribe to KB article changes
   subscribeToKBArticles(organizationId: string, callback: (payload: RealtimePostgresChangesPayload<KBArticle>) => void) {
+    console.log('Setting up KB article subscription for org:', organizationId);
     return supabase
       .channel(`kb-articles-${organizationId}`)
       .on(
@@ -143,7 +170,32 @@ export const subscriptionHelpers = {
           table: 'kb_articles',
           filter: `organization_id=eq.${organizationId}`
         },
-        callback
+        async (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          console.log('Received KB article event:', payload.eventType, payload);
+          if (payload.eventType === 'DELETE') {
+            console.log('Processing DELETE event:', payload.old);
+            // For deletes, transform the old record to match KBArticle type
+            const oldRecord = payload.old as Partial<KBArticle>;
+            callback({
+              ...payload,
+              old: oldRecord
+            } as RealtimePostgresChangesPayload<KBArticle>);
+            return;
+          }
+
+          // For inserts and updates, fetch the complete article data including author
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            console.log('Processing INSERT/UPDATE event:', payload.new);
+            const { data: article } = await kbQueries.getArticleById(payload.new.id as string);
+            if (article) {
+              callback({
+                ...payload,
+                new: article
+              } as RealtimePostgresChangesPayload<KBArticle>);
+              return;
+            }
+          }
+        }
       )
       .subscribe();
   }

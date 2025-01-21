@@ -6,9 +6,8 @@ import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
 import { KBArticle, KBAttachment } from '@/types/kb';
 import { kbQueries } from '@/utils/sql/kbQueries';
-import { MarkdownEditor } from '@/components/markdown/MarkdownEditor';
-import { isImageFile, getFileUrl, formatFileSize } from '@/utils/kb/attachments';
 import ReactMarkdown from 'react-markdown';
+import { getFileUrl, isImageFile, formatFileSize } from '@/utils/kb/attachments';
 import AttachmentDisplay from '@/components/kb/AttachmentDisplay';
 
 export default function ArticleDetailPage() {
@@ -145,7 +144,7 @@ export default function ArticleDetailPage() {
           <div className="prose max-w-none">
             <ReactMarkdown
               components={{
-                a: ({ node, href, children, ...props }) => {
+                a: ({ href, children, ...props }) => {
                   const isStorageUrl = href && (
                     href.includes('storage.googleapis.com') || 
                     href.includes('supabase.co/storage')
@@ -176,9 +175,9 @@ export default function ArticleDetailPage() {
                   );
                 },
                 // Ensure paragraphs can contain blocks
-                p: ({ children }) => {
-                  return <div className="mb-4">{children}</div>;
-                }
+                p: ({ ...props }) => (
+                  <div className="mb-4" {...props} />
+                )
               }}
             >
               {article.content}

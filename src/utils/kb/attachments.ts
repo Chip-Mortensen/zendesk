@@ -27,11 +27,11 @@ export async function uploadFile(
     const storagePath = `${organizationId}/${articleId}/${fileName}`;
 
     // Upload to storage
-    const { data: storageData, error: storageError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('kb_attachments')
       .upload(storagePath, file);
 
-    if (storageError) throw storageError;
+    if (uploadError) throw uploadError;
 
     // Create attachment record
     const attachmentData: CreateKBAttachmentInput = {

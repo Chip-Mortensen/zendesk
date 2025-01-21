@@ -5,130 +5,138 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
 import { KBArticle } from '@/types/kb';
-import { kbQueries, subscriptionHelpers } from '@/utils/sql/kbQueries';
+import { kbQueries } from '@/utils/sql/kbQueries';
+import { useKBArticleSubscription } from '@/hooks/useKBArticleSubscription';
 import { getPlainTextFromMarkdown } from '@/utils/markdown';
 
 export default function KnowledgeBasePage() {
   const router = useRouter();
   const [articles, setArticles] = useState<KBArticle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    async function loadUserAndArticles() {
+    async function loadArticles() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          console.error('No session found');
-          router.push('/auth?type=admin');
+        const session = await supabase.auth.getSession();
+        if (!session.data.session) {
+          router.push('/login');
           return;
         }
 
-        // Get user's organization
-        const { data: memberData, error: memberError } = await supabase
+        const { data: orgMembership } = await supabase
           .from('org_members')
-          .select('organization_id')
-          .eq('user_id', session.user.id)
-          .eq('role', 'admin')
+          .select('organization_id, role')
+          .eq('user_id', session.data.session.user.id)
           .single();
 
-        if (memberError || !memberData) {
-          console.error('Error fetching member data:', memberError);
-          router.push('/auth?type=admin');
+        if (!orgMembership) {
+          router.push('/dashboard');
           return;
         }
 
-        setOrganizationId(memberData.organization_id);
+        setOrganizationId(orgMembership.organization_id);
+        setIsAdmin(orgMembership.role === 'admin');
 
-        // Get articles for this organization
-        const { data: articlesData, error: articlesError } = await kbQueries.getOrgArticles(memberData.organization_id);
+        const { data: articles, error } = await kbQueries.getOrgArticles(orgMembership.organization_id);
+        if (error) throw error;
 
-        if (articlesError) {
-          console.error('Error fetching articles:', articlesError);
-          return;
-        }
-
-        setArticles(articlesData || []);
-      } catch (error) {
-        console.error('Error in loadUserAndArticles:', error);
-      } finally {
+        setArticles(articles);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error loading articles:', err);
+        setError('Failed to load articles');
         setLoading(false);
       }
     }
 
-    loadUserAndArticles();
+    loadArticles();
   }, [router]);
 
-  // Set up realtime subscription
-  useEffect(() => {
-    if (!organizationId) return;
-
-    const subscription = subscriptionHelpers.subscribeToKBArticles(
-      organizationId,
-      (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setArticles(current => [payload.new as KBArticle, ...current]);
-        } else if (payload.eventType === 'DELETE') {
-          setArticles(current => current.filter(article => article.id !== payload.old.id));
-        } else if (payload.eventType === 'UPDATE') {
-          setArticles(current =>
-            current.map(article =>
-              article.id === payload.new.id ? { ...article, ...payload.new } : article
-            )
-          );
-        }
+  // Set up real-time subscription
+  useKBArticleSubscription(organizationId, (payload) => {
+    if (payload.eventType === 'INSERT' && payload.new.status === 'published') {
+      setArticles(current => [payload.new as KBArticle, ...current]);
+    } else if (payload.eventType === 'DELETE') {
+      setArticles(current => current.filter(article => article.id !== payload.old.id));
+    } else if (payload.eventType === 'UPDATE') {
+      if (payload.new.status === 'published') {
+        setArticles(current => {
+          const exists = current.some(a => a.id === payload.new.id);
+          if (exists) {
+            return current.map(article => 
+              article.id === payload.new.id ? { ...payload.new as KBArticle } : article
+            );
+          } else {
+            return [payload.new as KBArticle, ...current];
+          }
+        });
+      } else {
+        // Remove articles that are no longer published
+        setArticles(current => current.filter(article => article.id !== payload.new.id));
       }
-    );
+    }
+  });
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [organizationId]);
-
-  if (loading) {
-    return <div className="text-center py-12">Loading knowledge base...</div>;
-  }
+  if (loading) return <div className="p-4">Loading...</div>;
+  if (error) return <div className="p-4 text-red-500">{error}</div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-gray-900">Knowledge Base</h1>
-        <Link
-          href="/dashboard/kb/new"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          Create Article
-        </Link>
+    <div className="p-4">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Knowledge Base</h1>
+        <div className="flex gap-4">
+          {isAdmin && (
+            <Link
+              href="/dashboard/kb/drafts"
+              className="border border-gray-300 hover:border-gray-400 px-4 py-2 rounded text-gray-700 hover:text-gray-900"
+            >
+              View Drafts
+            </Link>
+          )}
+          {isAdmin && (
+            <Link
+              href="/dashboard/kb/new"
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+            >
+              Create New Article
+            </Link>
+          )}
+        </div>
       </div>
 
-      {articles.length === 0 ? (
-        <div className="text-center py-12 bg-white shadow rounded-lg">
-          <p className="text-gray-500">No articles found. Create your first article to get started.</p>
-        </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {articles.map((article) => (
-            <Link
-              key={article.id}
-              href={`/dashboard/kb/${article.id}`}
-              className="block bg-white shadow rounded-lg hover:shadow-md transition-shadow h-full"
-            >
-              <div className="p-6 flex flex-col h-full">
-                <div className="flex-grow">
-                  <h2 className="text-lg font-medium text-gray-900 mb-2">{article.title}</h2>
-                  <p className="text-gray-500 text-sm line-clamp-3">
-                    {getPlainTextFromMarkdown(article.content)}
-                  </p>
-                </div>
-                <div className="mt-4 flex justify-between items-center text-xs text-gray-400">
-                  <span>{article.author_name}</span>
-                  <span>{new Date(article.created_at).toLocaleDateString()}</span>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {articles.map((article) => (
+          <div
+            key={article.id}
+            className="border rounded-lg p-6 hover:border-blue-500 transition-colors flex flex-col justify-between h-full"
+          >
+            <div>
+              <Link href={`/dashboard/kb/${article.id}`}>
+                <h2 className="text-xl font-semibold mb-3 hover:text-blue-600 transition-colors">{article.title}</h2>
+              </Link>
+              <p className="text-gray-600 mb-4 line-clamp-3">
+                {getPlainTextFromMarkdown(article.content)}
+              </p>
+            </div>
+            <div className="flex justify-between items-center text-sm text-gray-500 pt-4 border-t">
+              <span>By {article.author_name}</span>
+              <span>Published {new Date(article.published_at || article.created_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+        ))}
+
+        {articles.length === 0 && (
+          <div className="col-span-full">
+            <p className="text-gray-500 text-center py-8">
+              No published articles yet.
+              {isAdmin && " Click 'Create New Article' to get started."}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

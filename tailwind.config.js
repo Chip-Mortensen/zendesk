@@ -6,45 +6,17 @@ module.exports = {
       typography: {
         DEFAULT: {
           css: {
-            maxWidth: 'none',
-            color: '#1a202c',
             a: {
-              color: '#3182ce',
+              color: '#2563eb',
               '&:hover': {
-                color: '#2c5282',
+                color: '#1d4ed8',
               },
             },
-            strong: {
-              color: '#1a202c',
-            },
-            h1: {
-              color: '#1a202c',
-            },
-            h2: {
-              color: '#1a202c',
-            },
-            h3: {
-              color: '#1a202c',
-            },
-            h4: {
-              color: '#1a202c',
-            },
-            code: {
-              color: '#1a202c',
-            },
-            blockquote: {
-              color: '#4a5568',
-            },
+            color: '#374151',
           },
         },
       },
     },
   },
   plugins: [require('@tailwindcss/forms'), require('@tailwindcss/typography')],
-  // This is important for the markdown editor
-  safelist: [
-    {
-      pattern: /^w-md-/,
-    },
-  ],
 };

@@ -15,38 +15,43 @@ export default function EditArticlePage() {
   const [article, setArticle] = useState<KBArticle | null>(null);
   const [attachments, setAttachments] = useState<KBAttachment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadArticle() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          router.push('/auth?type=admin');
+        const session = await supabase.auth.getSession();
+        if (!session.data.session) {
+          router.push('/login');
           return;
         }
 
-        // Get user's organization
-        const { data: memberData, error: memberError } = await supabase
+        setUserId(session.data.session.user.id);
+
+        const { data: orgMembership } = await supabase
           .from('org_members')
-          .select('organization_id')
-          .eq('user_id', session.user.id)
-          .eq('role', 'admin')
+          .select('organization_id, role')
+          .eq('user_id', session.data.session.user.id)
           .single();
 
-        if (memberError || !memberData) {
-          router.push('/auth?type=admin');
+        if (!orgMembership || orgMembership.role !== 'admin') {
+          router.push('/dashboard');
           return;
         }
 
-        // Get article
+        setOrganizationId(orgMembership.organization_id);
+
         const { data: articleData, error: articleError } = await kbQueries.getArticleById(
           params.id as string,
-          memberData.organization_id
+          orgMembership.organization_id
         );
 
         if (articleError) {
@@ -97,24 +102,48 @@ export default function EditArticlePage() {
     loadArticle();
   }, [router, params.id]);
 
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const handleSave = async () => {
+    if (!article || !userId) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session found');
+      setSaving(true);
+      await kbQueries.updateArticle(article.id, { title, content }, userId);
+      router.push('/dashboard/kb');
+    } catch (err) {
+      console.error('Error saving article:', err);
+      setError('Failed to save article');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-      await kbQueries.updateArticle(
-        params.id as string,
-        { title, content },
-        session.user.id
-      );
+  const handlePublish = async () => {
+    if (!article || !organizationId || !userId) return;
 
-      router.push(`/dashboard/kb/${params.id}`);
-    } catch (error) {
-      console.error('Error updating article:', error);
-      setError(error instanceof Error ? error.message : 'Failed to update article');
+    try {
+      setPublishing(true);
+      await kbQueries.publishArticle(article.id, organizationId, userId, title, content);
+      router.push('/dashboard/kb');
+    } catch (err) {
+      console.error('Error publishing article:', err);
+      setError('Failed to publish article');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (!article || !organizationId || !userId) return;
+
+    try {
+      setPublishing(true);
+      await kbQueries.unpublishArticle(article.id, organizationId, userId);
+      router.push('/dashboard/kb/drafts');
+    } catch (err) {
+      console.error('Error unpublishing article:', err);
+      setError('Failed to unpublish article');
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -133,7 +162,7 @@ export default function EditArticlePage() {
     setError(null);
 
     try {
-      await kbQueries.deleteArticle(article.id, article.organization_id);
+      await kbQueries.deleteArticle(article.id, article.organization_id, userId!);
       router.push('/dashboard/kb');
     } catch (err) {
       console.error('Error deleting article:', err);
@@ -157,134 +186,139 @@ export default function EditArticlePage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <nav className="flex mb-4" aria-label="Breadcrumb">
-            <ol className="flex items-center space-x-4">
-              <li>
-                <Link href="/dashboard/kb" className="text-sm font-medium text-gray-500 hover:text-gray-700">
-                  Knowledge Base
-                </Link>
-              </li>
-              <li>
-                <div className="flex items-center">
-                  <span className="text-gray-400 mx-2">/</span>
-                  <Link
-                    href={`/dashboard/kb/${article.id}`}
-                    className="text-sm font-medium text-gray-500 hover:text-gray-700 truncate"
-                  >
-                    {article.title}
-                  </Link>
-                </div>
-              </li>
-              <li>
-                <div className="flex items-center">
-                  <span className="text-gray-400 mx-2">/</span>
-                  <span className="text-sm font-medium text-gray-500 truncate">
-                    Edit
-                  </span>
-                </div>
-              </li>
-            </ol>
-          </nav>
-        </div>
-        <button
-          onClick={() => setShowDeleteModal(true)}
-          className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-          disabled={isDeleting}
-        >
-          {isDeleting ? (
-            <>
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-              Deleting...
-            </>
-          ) : (
-            <>
-              <svg className="-ml-0.5 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              Delete Article
-            </>
-          )}
-        </button>
-      </div>
-
-      <form onSubmit={handleUpdate} className="space-y-8">
-        <div className="space-y-6">
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="flex">
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                </div>
-              </div>
-            </div>
-          )}
-
+    <>
+      <div className="space-y-6 p-6">
+        <div className="flex justify-between items-center">
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+            <nav className="flex mb-4" aria-label="Breadcrumb">
+              <ol className="flex items-center space-x-4">
+                <li>
+                  <Link href="/dashboard/kb" className="text-sm font-medium text-gray-500 hover:text-gray-700">
+                    Knowledge Base
+                  </Link>
+                </li>
+                <li>
+                  <div className="flex items-center">
+                    <span className="text-gray-400 mx-2">/</span>
+                    <Link
+                      href={`/dashboard/kb/${article.id}`}
+                      className="text-sm font-medium text-gray-500 hover:text-gray-700 truncate"
+                    >
+                      {article.title}
+                    </Link>
+                  </div>
+                </li>
+                <li>
+                  <div className="flex items-center">
+                    <span className="text-gray-400 mx-2">/</span>
+                    <span className="text-sm font-medium text-gray-500 truncate">
+                      Edit
+                    </span>
+                  </div>
+                </li>
+              </ol>
+            </nav>
+          </div>
+          <div className="flex gap-4">
+            <button
+              onClick={() => router.push('/dashboard/kb')}
+              className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+              disabled={saving || publishing}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              disabled={saving || publishing}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              onClick={article.status === 'published' ? handleUnpublish : handlePublish}
+              className={`px-4 py-2 rounded text-white disabled:opacity-50 ${
+                article.status === 'published'
+                  ? 'bg-yellow-500 hover:bg-yellow-600'
+                  : 'bg-green-500 hover:bg-green-600'
+              }`}
+              disabled={saving || publishing}
+            >
+              {publishing
+                ? 'Processing...'
+                : article.status === 'published'
+                ? 'Unpublish'
+                : 'Publish'}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
               Title
             </label>
-            <div className="mt-1">
-              <input
-                type="text"
-                name="title"
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                required
-              />
-            </div>
+            <input
+              type="text"
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Article title"
+            />
           </div>
 
           <div>
-            <label htmlFor="content" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
               Content
             </label>
-            <div className="mt-1">
-              <MarkdownEditor
-                value={content}
-                onChange={setContent}
-                height={500}
-              />
-            </div>
+            <MarkdownEditor
+              value={content}
+              onChange={setContent}
+              preview={false}
+              height={500}
+            />
           </div>
 
-          <div className="border-t border-gray-200 pt-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Attachments</h3>
-            <div className="bg-gray-50 rounded-lg">
-              <AttachmentPanel
-                articleId={article.id}
-                organizationId={article.organization_id}
-                attachments={attachments}
-                onAttachmentAdded={handleAttachmentAdded}
-                onAttachmentDeleted={handleAttachmentDeleted}
-                className="flex-grow"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Attachments
+            </label>
+            <AttachmentPanel
+              articleId={article.id}
+              organizationId={organizationId!}
+              className="border rounded-lg p-4"
+              attachments={attachments}
+              onAttachmentAdded={handleAttachmentAdded}
+              onAttachmentDeleted={handleAttachmentDeleted}
+            />
           </div>
         </div>
 
         <div className="flex justify-end space-x-3">
-          <Link
-            href={`/dashboard/kb/${article.id}`}
-            className="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Cancel
-          </Link>
           <button
-            type="submit"
-            className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            onClick={() => setShowDeleteModal(true)}
+            className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            disabled={isDeleting}
           >
-            Save Changes
+            {isDeleting ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Deleting...
+              </>
+            ) : (
+              <>
+                <svg className="-ml-0.5 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete Article
+              </>
+            )}
           </button>
         </div>
-      </form>
+      </div>
 
       {showDeleteModal && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-50">
@@ -332,6 +366,6 @@ export default function EditArticlePage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 } 

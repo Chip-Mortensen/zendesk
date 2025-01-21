@@ -14,16 +14,16 @@ interface PendingAttachment {
 }
 
 interface AttachmentPanelProps {
-  articleId?: string;
-  organizationId?: string;
-  attachments?: KBAttachment[];
+  articleId: string;
+  organizationId: string;
+  className?: string;
   onAttachmentAdded?: (attachment: KBAttachment) => void;
   onAttachmentDeleted?: (attachmentId: string) => void;
+  attachments?: KBAttachment[];
   isPending?: boolean;
   pendingFiles?: PendingAttachment[];
   onPendingFileAdded?: (file: File) => void;
   onPendingFileDeleted?: (fileName: string) => void;
-  className?: string;
 }
 
 export default function AttachmentPanel({
@@ -54,7 +54,7 @@ export default function AttachmentPanel({
     if (!session || !articleId || !organizationId) return;
 
     for (const file of acceptedFiles) {
-      const storagePath = `kb_attachments/${organizationId}/${articleId}/${articleId}-${Date.now()}-${file.name}`;
+      const storagePath = `${organizationId}/${articleId}/${articleId}-${Date.now()}`;
       
       // Upload file to storage
       const { error: uploadError } = await supabase.storage
@@ -203,38 +203,22 @@ export default function AttachmentPanel({
 
       {/* Show saved attachments for existing articles */}
       {!isPending && attachments.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-4">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {attachments.map((attachment) => (
             <div
               key={attachment.id}
-              className="flex items-center p-3 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow duration-150 w-64"
+              className="flex flex-col p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow duration-150"
             >
-              {isImageFile(attachment.file_type) ? (
-                <div className="w-10 h-10 flex-shrink-0">
-                  <img
-                    src={getFileUrl(attachment.storage_path)}
-                    alt={attachment.file_name}
-                    className="w-full h-full object-cover rounded"
-                  />
-                </div>
-              ) : (
-                <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-gray-100 rounded">
-                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                </div>
-              )}
-              <div className="ml-3 flex-grow">
-                <div className="text-sm font-medium text-gray-900 truncate">{attachment.file_name}</div>
-                <div className="text-sm text-gray-500">{formatFileSize(attachment.file_size)}</div>
-                <div className="flex items-center mt-1">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm font-medium text-gray-900 truncate flex-grow">{attachment.file_name}</div>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleCopy(attachment)}
-                    className={`p-1 transition-colors duration-150 ${
+                    className={`p-1.5 rounded-full transition-colors duration-150 ${
                       copiedId === attachment.id 
-                        ? 'text-green-500' 
-                        : 'text-gray-400 hover:text-blue-500'
+                        ? 'bg-green-100 text-green-600' 
+                        : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'
                     }`}
                     title="Copy markdown to clipboard"
                   >
@@ -253,18 +237,36 @@ export default function AttachmentPanel({
                       </span>
                     )}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(attachment.id, attachment.storage_path)}
+                    className="p-1.5 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50"
+                    title="Delete attachment"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => handleDelete(attachment.id, attachment.storage_path)}
-                className="p-1 text-gray-400 hover:text-red-500"
-                title="Delete attachment"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
+              
+              <div className="relative w-full aspect-[3/2] bg-gray-50 rounded-md overflow-hidden mb-2">
+                {isImageFile(attachment.file_type) ? (
+                  <img
+                    src={getFileUrl(attachment.storage_path)}
+                    alt={attachment.file_name}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              
+              <div className="text-sm text-gray-500 mt-auto">{formatFileSize(attachment.file_size)}</div>
             </div>
           ))}
         </div>

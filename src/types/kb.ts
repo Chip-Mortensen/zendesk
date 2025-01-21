@@ -1,19 +1,29 @@
+export type ArticleStatus = 'draft' | 'published';
+
 export interface KBArticle {
   id: string;
   title: string;
   content: string;
-  created_by: string;
   created_at: string;
   updated_at: string;
   organization_id: string;
+  created_by: string;
   author_name?: string;
-  attachments?: KBAttachment[];
+  status: ArticleStatus;
+  published_at?: string;
 }
 
-export type CreateKBArticleInput = Omit<KBArticle, 'id' | 'created_at' | 'updated_at' | 'author_name'> & {
-  temp_article_id?: string;
+export type CreateKBArticleInput = {
+  title: string;
+  content: string;
+  organization_id: string;
+  created_by: string;
 };
-export type UpdateKBArticleInput = Pick<KBArticle, 'title' | 'content'>;
+
+export type UpdateKBArticleInput = {
+  title?: string;
+  content?: string;
+};
 
 export interface KBAttachment {
   id: string;

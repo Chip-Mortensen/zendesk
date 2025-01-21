@@ -1,8 +1,6 @@
-import ReactMarkdown from 'react-markdown';
-
 export function getPlainTextFromMarkdown(markdown: string, maxLength: number = 200): string {
   // Remove common markdown syntax
-  let plainText = markdown
+  const plainText = markdown
     // Remove headers
     .replace(/#{1,6}\s/g, '')
     // Remove bold/italic

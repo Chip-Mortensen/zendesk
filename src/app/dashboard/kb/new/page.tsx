@@ -1,242 +1,98 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
 import { kbQueries } from '@/utils/sql/kbQueries';
-import { KBAttachment } from '@/types/kb';
-import { MarkdownEditor } from '@/components/markdown/MarkdownEditor';
-import AttachmentPanel from '@/components/kb/AttachmentPanel';
-
-interface PendingAttachment {
-  file: File;
-  name: string;
-  type: string;
-  size: number;
-}
 
 export default function NewKBArticlePage() {
   const router = useRouter();
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [organizationId, setOrganizationId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
-  // Load user's organization
-  useEffect(() => {
-    async function loadOrganization() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          router.push('/auth?type=admin');
-          return;
-        }
-
-        setUserId(session.user.id);
-
-        const { data: memberData, error: memberError } = await supabase
-          .from('org_members')
-          .select('organization_id')
-          .eq('user_id', session.user.id)
-          .eq('role', 'admin')
-          .single();
-
-        if (memberError || !memberData) {
-          router.push('/auth?type=admin');
-          return;
-        }
-
-        setOrganizationId(memberData.organization_id);
-      } catch (error) {
-        console.error('Error loading organization:', error);
-      }
-    }
-
-    loadOrganization();
-  }, [router]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!organizationId || !userId) return;
-
-    setLoading(true);
-    setError(null);
+    if (!title.trim()) return;
 
     try {
-      console.log('Creating article with data:', { title, content, organizationId, userId });
-      
-      // 1. Create the article first
-      const articles = await kbQueries.createArticle({
-        title,
-        content,
-        organization_id: organizationId,
-        created_by: userId
-      });
-      
-      console.log('Create article response:', articles);
+      setCreating(true);
 
-      // The stored procedure returns an array with one item
-      const article = articles?.[0];
-      console.log('First article from response:', article);
-      
-      if (!article?.id) throw new Error('No article ID returned');
-      console.log('Successfully got article ID:', article.id);
-
-      // 2. Upload any pending attachments
-      console.log('Starting attachment uploads for article:', article.id);
-      for (const pending of pendingAttachments) {
-        const storagePath = `${organizationId}/${article.id}/${article.id}-${Date.now()}`;
-        
-        // Upload to storage
-        const { error: uploadError } = await supabase.storage
-          .from('kb_attachments')
-          .upload(storagePath, pending.file);
-
-        if (uploadError) {
-          console.error('Error uploading file:', uploadError);
-          continue;
-        }
-
-        // Create attachment record
-        const { error: attachError } = await supabase
-          .from('kb_attachments')
-          .insert({
-            article_id: article.id,
-            organization_id: organizationId,
-            file_name: pending.name,
-            file_type: pending.type,
-            file_size: pending.size,
-            storage_path: storagePath,
-            created_by: userId
-          });
-
-        if (attachError) {
-          console.error('Error creating attachment record:', attachError);
-        }
+      const session = await supabase.auth.getSession();
+      if (!session.data.session) {
+        router.push('/login');
+        return;
       }
 
-      router.push('/dashboard/kb');
+      const { data: orgMembership } = await supabase
+        .from('org_members')
+        .select('organization_id, role')
+        .eq('user_id', session.data.session.user.id)
+        .single();
+
+      if (!orgMembership || orgMembership.role !== 'admin') {
+        router.push('/dashboard');
+        return;
+      }
+
+      const article = await kbQueries.createArticle({
+        title: title.trim(),
+        content: '',
+        organization_id: orgMembership.organization_id,
+        created_by: session.data.session.user.id
+      });
+
+      router.push(`/dashboard/kb/${article.id}/edit`);
     } catch (err) {
       console.error('Error creating article:', err);
-      setError('Failed to create article');
-      setLoading(false);
+      setCreating(false);
     }
   };
 
-  const handleAttachmentAdded = (file: File) => {
-    setPendingAttachments(current => [...current, {
-      file,
-      name: file.name,
-      type: file.type,
-      size: file.size
-    }]);
-  };
-
-  const handleAttachmentDeleted = (fileName: string) => {
-    setPendingAttachments(current => current.filter(a => a.name !== fileName));
-  };
-
-  if (!organizationId) {
-    return <div className="text-center py-12">Loading...</div>;
-  }
-
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <nav className="flex mb-4" aria-label="Breadcrumb">
-            <ol className="flex items-center space-x-4">
-              <li>
-                <Link href="/dashboard/kb" className="text-sm font-medium text-gray-500 hover:text-gray-700">
-                  Knowledge Base
-                </Link>
-              </li>
-              <li>
-                <div className="flex items-center">
-                  <span className="text-gray-400 mx-2">/</span>
-                  <span className="text-sm font-medium text-gray-500 truncate">
-                    New Article
-                  </span>
-                </div>
-              </li>
-            </ol>
-          </nav>
-        </div>
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="flex items-center mb-8">
+        <Link
+          href="/dashboard/kb"
+          className="text-gray-600 hover:text-gray-900 flex items-center gap-1"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to Knowledge Base
+        </Link>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="space-y-6">
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="flex">
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                </div>
-              </div>
-            </div>
-          )}
+      <h1 className="text-2xl font-bold mb-8">Create New Article</h1>
 
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-              Title
-            </label>
-            <div className="mt-1">
-              <input
-                type="text"
-                name="title"
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="content" className="block text-sm font-medium text-gray-700">
-              Content
-            </label>
-            <div className="mt-1">
-              <MarkdownEditor
-                value={content}
-                onChange={setContent}
-                height={500}
-              />
-            </div>
-          </div>
-
-          <div className="border-t border-gray-200 pt-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Attachments</h3>
-            <div className="bg-gray-50 rounded-lg">
-              <AttachmentPanel
-                isPending={true}
-                pendingFiles={pendingAttachments}
-                onPendingFileAdded={handleAttachmentAdded}
-                onPendingFileDeleted={handleAttachmentDeleted}
-                className="flex-grow"
-              />
-            </div>
-          </div>
+      <form onSubmit={handleCreate} className="space-y-6">
+        <div>
+          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+            Title
+          </label>
+          <input
+            type="text"
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Enter article title"
+          />
         </div>
 
-        <div className="flex justify-end space-x-3">
+        <div className="flex justify-end gap-3">
           <Link
             href="/dashboard/kb"
-            className="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50"
           >
             Cancel
           </Link>
           <button
             type="submit"
-            disabled={loading}
-            className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            disabled={creating}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Creating...' : 'Create Article'}
+            {creating ? 'Creating...' : 'Create Article'}
           </button>
         </div>
       </form>
