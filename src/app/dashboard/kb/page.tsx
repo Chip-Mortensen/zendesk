@@ -38,7 +38,7 @@ export default function KnowledgeBasePage() {
         }
 
         setOrganizationId(orgMembership.organization_id);
-        setIsAdmin(orgMembership.role === 'admin');
+        setIsAdmin(['admin', 'employee'].includes(orgMembership.role));
 
         const { data: articles, error } = await kbQueries.getOrgArticles(orgMembership.organization_id);
         if (error) throw error;

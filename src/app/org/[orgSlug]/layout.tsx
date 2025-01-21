@@ -65,7 +65,7 @@ export default function CustomerPortalLayout({
         // Then get the membership with this org
         const { data: memberData, error: memberError } = await supabase
           .from('org_members')
-          .select('user_id, organization_id')
+          .select('user_id, organization_id, role')
           .eq('user_id', session.user.id)
           .eq('organization_id', orgData.id)
           .single();
@@ -78,9 +78,10 @@ export default function CustomerPortalLayout({
           return;
         }
 
-        if (!memberData) {
-          console.error('Organization membership not found');
-          router.push('/auth?type=customer');
+        // Check if user is a customer - admins and employees should go to dashboard
+        if (!memberData || (memberData.role !== 'customer')) {
+          console.log('Redirecting admin/employee to dashboard');
+          router.push('/dashboard');
           return;
         }
 
@@ -113,7 +114,7 @@ export default function CustomerPortalLayout({
   const navigation = [
     { name: 'My Tickets', href: `/org/${orgSlug}/tickets` },
     { name: 'Knowledge Base', href: `/org/${orgSlug}/kb` },
-    { name: 'Chat Support', href: `/org/${orgSlug}/chat` },
+    { name: 'Chat', href: `/org/${orgSlug}/chat` },
   ];
 
   const handleSignOut = async () => {

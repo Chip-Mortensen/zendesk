@@ -6,5 +6,13 @@
       "argsIgnorePattern": "^_",
       "varsIgnorePattern": "^_"
     }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["**/*.tsx", "**/*.ts"],
+      "rules": {
+        "@next/next/no-img-element": "off"
+      }
+    }
+  ]
 } 

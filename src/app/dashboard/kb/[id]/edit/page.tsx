@@ -42,7 +42,7 @@ export default function EditArticlePage() {
           .eq('user_id', session.data.session.user.id)
           .single();
 
-        if (!orgMembership || orgMembership.role !== 'admin') {
+        if (!orgMembership || !['admin', 'employee'].includes(orgMembership.role)) {
           router.push('/dashboard');
           return;
         }

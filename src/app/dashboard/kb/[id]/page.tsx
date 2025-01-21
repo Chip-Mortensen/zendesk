@@ -32,7 +32,7 @@ export default function ArticleDetailPage() {
           .from('org_members')
           .select('organization_id')
           .eq('user_id', session.user.id)
-          .eq('role', 'admin')
+          .in('role', ['admin', 'employee'])
           .single();
 
         if (memberError || !memberData) {

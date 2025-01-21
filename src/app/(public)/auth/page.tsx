@@ -30,6 +30,12 @@ interface FormErrors {
   general?: string;
 }
 
+interface InviteData {
+  email: string;
+  organization_id: string;
+  organization_name: string;
+}
+
 function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -43,6 +49,7 @@ function AuthContent() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
+  const [inviteData, setInviteData] = useState<InviteData | null>(null);
 
   // Set initial state based on URL parameters
   useEffect(() => {
@@ -55,6 +62,15 @@ function AuthContent() {
       fetchOrganizations();
     }
   }, [searchParams, router]);
+
+  // Check for invite token
+  useEffect(() => {
+    const inviteToken = searchParams.get('invite');
+    if (inviteToken) {
+      console.log('Found invite token:', inviteToken);
+      verifyInvite(inviteToken);
+    }
+  }, [searchParams]);
 
   const fetchOrganizations = async () => {
     setIsLoadingOrgs(true);
@@ -89,12 +105,85 @@ function AuthContent() {
     }
   };
 
+  const verifyInvite = async (token: string) => {
+    try {
+      console.log('Starting invite verification for token:', token);
+      
+      // Set the invite token for RLS policy
+      const { error: setTokenError } = await supabase.rpc('set_invite_token', { token });
+      console.log('Set invite token result:', { setTokenError });
+      if (setTokenError) {
+        console.error('Error setting invite token:', setTokenError);
+      }
+
+      // Verify the invite
+      console.log('Calling verify_invite with token:', token);
+      const { data: verifyData, error: verifyError } = await supabase.rpc('verify_invite', {
+        p_token: token
+      });
+      console.log('Verify invite result:', { verifyData, verifyError });
+
+      if (verifyError) {
+        console.error('Verification error:', verifyError);
+        setErrors({ general: verifyError.message });
+        return;
+      }
+
+      // verifyData comes back as an array with one row
+      const verifyResult = verifyData?.[0];
+      console.log('Verify result row:', verifyResult);
+
+      if (!verifyResult?.is_valid) {
+        console.log('Invalid invite data:', verifyResult);
+        setErrors({ general: 'Invalid or expired invite link' });
+        return;
+      }
+
+      // Get organization name
+      console.log('Getting organization details for:', verifyResult.organization_id);
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', verifyResult.organization_id)
+        .single();
+      console.log('Organization lookup result:', { orgData, orgError });
+
+      if (orgError) {
+        console.error('Error fetching organization:', orgError);
+      }
+
+      const inviteInfo = {
+        email: verifyResult.email,
+        organization_id: verifyResult.organization_id,
+        organization_name: orgData?.name || 'Unknown Organization'
+      };
+      console.log('Setting invite data:', inviteInfo);
+      setInviteData(inviteInfo);
+
+      // Pre-fill and lock the email
+      console.log('Pre-filling email:', verifyResult.email);
+      setFormData(prev => ({
+        ...prev,
+        email: verifyResult.email
+      }));
+
+      // Force signup mode
+      setMode('signup');
+    } catch (error) {
+      console.error('Error in verifyInvite:', error);
+      setErrors({ general: 'Failed to verify invite link' });
+    }
+  };
+
   // Add debugging for organizations state
   useEffect(() => {
     console.log('Current organizations:', organizations);
   }, [organizations]);
 
   const getPortalTitle = () => {
+    if (inviteData) {
+      return `Join ${inviteData.organization_name}`;
+    }
     const portalType = userType === 'admin' ? 'Admin' : 'Customer';
     return `${portalType} Portal ${mode === 'signin' ? 'Sign In' : 'Sign Up'}`;
   };
@@ -106,37 +195,55 @@ function AuthContent() {
 
   const validateForm = () => {
     const newErrors: FormErrors = {};
+    console.log('Validating form with mode:', mode, 'userType:', userType, 'inviteData:', inviteData);
 
     if (mode === 'signup') {
-      if (userType === 'admin') {
-        if (!formData.name?.trim()) {
-          newErrors.name = 'Name is required';
-        }
-        if (!formData.orgName?.trim()) {
-          newErrors.orgName = 'Organization name is required';
+      if (!inviteData) {  // Only check these for non-invite signups
+        if (userType === 'admin') {
+          if (!formData.name?.trim()) {
+            console.log('Validation failed: admin name required');
+            newErrors.name = 'Name is required';
+          }
+          if (!formData.orgName?.trim()) {
+            console.log('Validation failed: admin org name required');
+            newErrors.orgName = 'Organization name is required';
+          }
+        } else {
+          if (!formData.name?.trim()) {
+            console.log('Validation failed: customer name required');
+            newErrors.name = 'Name is required';
+          }
+          if (!formData.organizationId) {
+            console.log('Validation failed: customer org selection required');
+            newErrors.organizationId = 'Please select an organization';
+          }
         }
       } else {
+        // For invite signups, only validate name
         if (!formData.name?.trim()) {
+          console.log('Validation failed: invite name required');
           newErrors.name = 'Name is required';
-        }
-        if (!formData.organizationId) {
-          newErrors.organizationId = 'Please select an organization';
         }
       }
     }
 
     if (!formData.email.trim()) {
+      console.log('Validation failed: email required');
       newErrors.email = 'Email is required';
     } else if (!validateEmail(formData.email)) {
+      console.log('Validation failed: invalid email format');
       newErrors.email = 'Invalid email format';
     }
 
     if (!formData.password) {
+      console.log('Validation failed: password required');
       newErrors.password = 'Password is required';
     } else if (mode === 'signup' && formData.password.length < 6) {
+      console.log('Validation failed: password too short');
       newErrors.password = 'Password must be at least 6 characters';
     }
 
+    console.log('Validation errors:', newErrors);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -151,23 +258,33 @@ function AuthContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    console.log('Form submitted with data:', formData);
+    console.log('Current invite data:', inviteData);
+    console.log('Current mode:', mode);
+    
+    if (!validateForm()) {
+      console.log('Form validation failed');
+      return;
+    }
 
     setIsLoading(true);
     try {
       if (mode === 'signup') {
         console.log('Starting signup process...');
         // First create the user
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        const signupData = {
           email: formData.email,
           password: formData.password,
           options: {
             data: {
               name: formData.name,
-              user_type: userType
+              user_type: inviteData ? 'employee' : userType
             }
           }
-        });
+        };
+        console.log('Sending signup request with:', signupData);
+        
+        const { data: authData, error: authError } = await supabase.auth.signUp(signupData);
 
         console.log('Auth signup result:', { authData, authError });
         if (authError) throw authError;
@@ -176,7 +293,57 @@ function AuthContent() {
           throw new Error('No user ID returned from signup');
         }
 
-        if (userType === 'admin') {
+        if (inviteData) {
+          // Create employee membership
+          console.log('Creating employee membership:', {
+            user_id: authData.user.id,
+            organization_id: inviteData.organization_id,
+            role: 'employee'
+          });
+
+          const { data: memberData, error: memberError } = await supabase
+            .from('org_members')
+            .insert([
+              {
+                user_id: authData.user.id,
+                organization_id: inviteData.organization_id,
+                role: 'employee'
+              }
+            ])
+            .select();
+
+          console.log('Employee membership result:', { memberData, memberError });
+          
+          if (memberError) {
+            console.error('Detailed membership error:', {
+              code: memberError.code,
+              message: memberError.message,
+              details: memberError.details,
+              hint: memberError.hint
+            });
+            throw memberError;
+          }
+
+          // Mark invite as used
+          if (inviteData) {
+            const { email, organization_id } = inviteData;
+            console.log('Attempting to mark invite as used:', { email, organization_id });
+            const { data: updateData, error: updateError } = await supabase
+              .from('invite_links')
+              .update({ used_at: new Date().toISOString() })
+              .eq('email', email)
+              .eq('organization_id', organization_id);
+
+            console.log('Update invite result:', { updateData, updateError });
+            if (updateError) {
+              console.error('Failed to mark invite as used:', updateError);
+            }
+          }
+
+          // Add delay before redirect
+          await new Promise(resolve => setTimeout(resolve, 500));
+          router.push('/dashboard');
+        } else if (userType === 'admin') {
           console.log('Creating organization for admin...');
           // Create organization for admin
           const { data: orgData, error: orgError } = await supabase
@@ -302,17 +469,34 @@ function AuthContent() {
         console.log('Member data result:', { memberData, memberError });
         if (memberError) throw memberError;
 
-        // Add a small delay to ensure session is set before redirect
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        if (memberData.role === 'admin') {
-          router.push('/dashboard');
-        } else {
-          const org = memberData.organizations as unknown as { slug: string };
-          if (!org || !org.slug) {
-            throw new Error('Invalid organization data structure');
+        // Redirect based on role and requested access type
+        if (userType === 'admin') {
+          // Only admins and employees can access the dashboard
+          if (memberData.role === 'admin' || memberData.role === 'employee') {
+            router.push('/dashboard');
+          } else {
+            setErrors({ general: 'Access denied: You do not have admin/employee access' });
+            await supabase.auth.signOut();
           }
-          router.push(`/org/${org.slug}`);
+        } else {
+          // Only customers can access the customer portal
+          if (memberData.role === 'customer') {
+            // Get org slug for redirect
+            const { data: orgData } = await supabase
+              .from('organizations')
+              .select('slug')
+              .eq('id', memberData.organization_id)
+              .single();
+            
+            if (orgData?.slug) {
+              router.push(`/org/${orgData.slug}`);
+            } else {
+              throw new Error('Organization not found');
+            }
+          } else {
+            setErrors({ general: 'Access denied: You do not have customer access' });
+            await supabase.auth.signOut();
+          }
         }
       }
     } catch (error: unknown) {
@@ -334,30 +518,32 @@ function AuthContent() {
               {getPortalTitle()}
             </h2>
 
-            <div className="mb-6">
-              <nav className="-mb-px flex" aria-label="Tabs">
-                <button
-                  onClick={() => setMode('signin')}
-                  className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
-                    mode === 'signin'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  onClick={() => setMode('signup')}
-                  className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
-                    mode === 'signup'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Sign Up
-                </button>
-              </nav>
-            </div>
+            {!inviteData && (
+              <div className="mb-6">
+                <nav className="-mb-px flex" aria-label="Tabs">
+                  <button
+                    onClick={() => setMode('signin')}
+                    className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                      mode === 'signin'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onClick={() => setMode('signup')}
+                    className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                      mode === 'signup'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    Sign Up
+                  </button>
+                </nav>
+              </div>
+            )}
 
             {errors.general && (
               <div className="mb-4 p-3 bg-red-50 text-red-700 rounded">
@@ -397,9 +583,12 @@ function AuthContent() {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
+                  disabled={!!inviteData}
                   className={`mt-1 block w-full rounded-md shadow-sm ${
                     errors.email ? 'border-red-300' : 'border-gray-300'
-                  } focus:border-blue-500 focus:ring-blue-500 sm:text-sm`}
+                  } focus:border-blue-500 focus:ring-blue-500 sm:text-sm ${
+                    inviteData ? 'bg-gray-100' : ''
+                  }`}
                 />
                 {errors.email && (
                   <p className="mt-1 text-sm text-red-600">{errors.email}</p>
@@ -425,7 +614,7 @@ function AuthContent() {
                 )}
               </div>
 
-              {mode === 'signup' && userType === 'admin' && (
+              {mode === 'signup' && !inviteData && userType === 'admin' && (
                 <div>
                   <label htmlFor="orgName" className="block text-sm font-medium text-gray-700">
                     Organization Name
@@ -446,7 +635,7 @@ function AuthContent() {
                 </div>
               )}
 
-              {mode === 'signup' && userType === 'customer' && (
+              {mode === 'signup' && !inviteData && userType === 'customer' && (
                 <div>
                   <label htmlFor="organizationId" className="block text-sm font-medium text-gray-700">
                     Organization

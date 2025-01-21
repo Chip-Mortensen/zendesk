@@ -46,12 +46,12 @@ export default function DashboardLayout({
         if (!session) return;
 
         // Get user's organization membership
-        console.log('Dashboard - Fetching admin membership for user:', session.user.id);
+        console.log('Dashboard - Fetching membership for user:', session.user.id);
         const { data: memberData, error: memberError } = await supabase
           .from('org_members')
           .select('organization_id, role')
           .eq('user_id', session.user.id)
-          .eq('role', 'admin')
+          .in('role', ['admin', 'employee'])
           .single();
 
         console.log('Dashboard - Membership check result:', {
@@ -60,7 +60,7 @@ export default function DashboardLayout({
         });
 
         if ((memberError || !memberData) && mounted) {
-          console.error('Dashboard - Error fetching admin data:', memberError);
+          console.error('Dashboard - Error fetching member data:', memberError);
           router.push('/auth?type=admin');
           return;
         }
@@ -126,7 +126,8 @@ export default function DashboardLayout({
     { name: 'Knowledge Base', href: '/dashboard/kb' },
     { name: 'Chat', href: '/dashboard/chat' },
     { name: 'Customers', href: '/dashboard/customers' },
-    { name: 'Settings', href: '/dashboard/settings' },
+    { name: 'Team', href: '/dashboard/team', adminOnly: true },
+    { name: 'Settings', href: '/dashboard/settings', adminOnly: true },
   ];
 
   const handleSignOut = async () => {
@@ -163,19 +164,21 @@ export default function DashboardLayout({
                 </Link>
               </div>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                {navigation.map((item) => (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                      pathname === item.href
-                        ? 'border-blue-500 text-gray-900'
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    }`}
-                  >
-                    {item.name}
-                  </Link>
-                ))}
+                {navigation
+                  .filter(item => !item.adminOnly || userData.role === 'admin')
+                  .map((item) => (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                        pathname === item.href
+                          ? 'border-blue-500 text-gray-900'
+                          : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                      }`}
+                    >
+                      {item.name}
+                    </Link>
+                  ))}
               </div>
             </div>
             <div className="flex items-center space-x-4">
