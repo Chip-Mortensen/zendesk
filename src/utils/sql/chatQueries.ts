@@ -136,6 +136,20 @@ export const chatQueries = {
     if (error) throw error;
     
     return (data?.map(member => member.users) ?? []).flat() as Array<{ id: string; name: string; email: string }>;
+  },
+
+  // Delete a conversation
+  async deleteConversation(conversationId: string, organizationId?: string) {
+    const query = supabase
+      .from('conversations')
+      .delete()
+      .eq('id', conversationId);
+    
+    if (organizationId) {
+      query.eq('organization_id', organizationId);
+    }
+
+    return await query;
   }
 };
 
