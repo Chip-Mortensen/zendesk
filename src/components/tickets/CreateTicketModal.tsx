@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { supabase } from '@/utils/supabase';
+import { Ticket } from '@/types/tickets';
 
 interface CreateTicketModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onTicketCreated: () => void;
+  onTicketCreated: (ticket: Ticket) => void;
   organizationId: string;
 }
 
@@ -77,7 +78,7 @@ export default function CreateTicketModal({ isOpen, onClose, onTicketCreated, or
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      const { error } = await supabase
+      const { data: newTicket, error } = await supabase
         .from('tickets')
         .insert([
           {
@@ -86,13 +87,16 @@ export default function CreateTicketModal({ isOpen, onClose, onTicketCreated, or
             status: 'open',
             organization_id: organizationId,
             created_by: user.id,
+            priority: 'medium',
           },
-        ]);
+        ])
+        .select()
+        .single();
 
       if (error) throw error;
 
       setFormData({ title: '', description: '' });
-      onTicketCreated();
+      onTicketCreated(newTicket);
       onClose();
     } catch (error) {
       console.error('Error creating ticket:', error);

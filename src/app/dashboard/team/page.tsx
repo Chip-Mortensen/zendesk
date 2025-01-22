@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/utils/supabase';
+import SortableHeader from '@/components/table/SortableHeader';
+import { sendTeamInviteEmail } from '@/utils/email';
 
 interface TeamMember {
   user_id: string;
@@ -21,6 +23,37 @@ interface OrgMemberWithUser {
   }
 }
 
+type SortDirection = 'asc' | 'desc';
+
+function sortTeamMembers(
+  members: TeamMember[],
+  field: string,
+  direction: SortDirection
+): TeamMember[] {
+  return [...members].sort((a, b) => {
+    switch (field) {
+      case 'name':
+        return direction === 'asc'
+          ? a.name.localeCompare(b.name)
+          : b.name.localeCompare(a.name);
+      case 'email':
+        return direction === 'asc'
+          ? a.email.localeCompare(b.email)
+          : b.email.localeCompare(a.email);
+      case 'role':
+        return direction === 'asc'
+          ? a.role.localeCompare(b.role)
+          : b.role.localeCompare(a.role);
+      case 'created_at':
+        return direction === 'asc'
+          ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      default:
+        return 0;
+    }
+  });
+}
+
 export default function TeamPage() {
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -29,6 +62,11 @@ export default function TeamPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>('');
+  const [sortConfig, setSortConfig] = useState<{ field: string; direction: SortDirection }>({
+    field: 'created_at',
+    direction: 'desc'
+  });
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     async function loadTeamMembers() {
@@ -89,12 +127,24 @@ export default function TeamPage() {
     loadTeamMembers();
   }, []);
 
+  const handleSort = (field: string) => {
+    setSortConfig(current => ({
+      field,
+      direction: current.field === field && current.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const sortedTeamMembers = useMemo(() => {
+    return sortTeamMembers(teamMembers, sortConfig.field, sortConfig.direction);
+  }, [teamMembers, sortConfig]);
+
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!organizationId) return;
 
     setError('');
     setSuccess('');
+    setIsLoading(true);
 
     try {
       // Create invite link
@@ -111,104 +161,149 @@ export default function TeamPage() {
       if (inviteError) throw inviteError;
 
       // Generate the invite URL
-      const inviteUrl = `${window.location.origin}/auth?type=admin&invite=${invite.token}`;
+      const inviteUrl = `${process.env.DEPLOYED_URL}/auth?type=admin&invite=${invite.token}`;
 
-      setSuccess('Invite link created successfully! Share this link with the employee: ' + inviteUrl);
+      // Get organization name
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', organizationId)
+        .single();
+
+      if (orgError) throw orgError;
+
+      // Send invite email
+      const { success: emailSuccess, error: emailError } = await sendTeamInviteEmail({
+        to: inviteEmail.trim(),
+        organizationName: orgData.name,
+        inviteUrl
+      });
+
+      if (!emailSuccess) {
+        throw new Error(emailError || 'Failed to send invite email');
+      }
+
+      setSuccess('Team invitation sent successfully to ' + inviteEmail);
       setInviteEmail('');
 
     } catch (error) {
       console.error('Error creating invite:', error);
-      setError('Failed to create invite. Please try again.');
+      setError(error instanceof Error ? error.message : 'Failed to create invite. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   if (loading) {
-    return <div className="text-center">Loading team members...</div>;
+    return <div className="text-center py-12">Loading team members...</div>;
   }
 
   // Only admins can see this page
   if (userRole !== 'admin') {
-    return <div className="text-center text-red-600">Access denied. Only administrators can view this page.</div>;
+    return <div className="text-center text-red-600 py-12">Access denied. Only administrators can view this page.</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-gray-900">Team Members</h1>
-      </div>
-
-      {/* Invite form */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Invite Team Member</h2>
-        <form onSubmit={handleInvite} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              required
-            />
-          </div>
-          {error && (
-            <div className="text-red-500 text-sm">{error}</div>
-          )}
-          {success && (
-            <div className="text-green-500 text-sm break-all">{success}</div>
-          )}
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Send Invite
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* Team member list */}
       <div className="bg-white shadow rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <div className="p-6 border-b border-gray-200">
+          <h1 className="text-2xl font-bold">Team Members</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            View and manage your organization&apos;s team members.
+          </p>
+        </div>
+
+        {/* Invite form */}
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">Invite Team Member</h2>
+          <form onSubmit={handleInvite} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Role
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Joined
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {teamMembers.map((member) => (
-              <tr key={member.user_id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {member.name}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {member.email}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {member.role}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(member.created_at).toLocaleDateString()}
-                </td>
+              </label>
+              <input
+                type="email"
+                id="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                required
+              />
+            </div>
+            {error && (
+              <div className="text-red-500 text-sm">{error}</div>
+            )}
+            {success && (
+              <div className="text-green-500 text-sm break-all">{success}</div>
+            )}
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? 'Sending...' : 'Send Invite'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Team member list */}
+        {teamMembers.length === 0 ? (
+          <div className="p-6 text-gray-500">No team members found</div>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <SortableHeader
+                  label="Name"
+                  field="name"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Email"
+                  field="email"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Role"
+                  field="role"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Joined"
+                  field="created_at"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {sortedTeamMembers.map((member) => (
+                <tr 
+                  key={member.user_id}
+                  className="transition-colors duration-150 hover:bg-gray-50"
+                >
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {member.name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {member.email}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
+                    {member.role}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(member.created_at).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

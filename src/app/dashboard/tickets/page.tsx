@@ -8,7 +8,14 @@ import TagBadge from '@/components/tickets/TagBadge';
 import SortableHeader from '@/components/table/SortableHeader';
 import { sortTickets, SortableTicket } from '@/utils/sorting';
 
-type Ticket = SortableTicket;
+type Ticket = SortableTicket & {
+  assignee?: {
+    name: string;
+  } | null;
+  customer?: {
+    name: string;
+  } | null;
+};
 
 export default function TicketsPage() {
   const router = useRouter();
@@ -49,7 +56,15 @@ export default function TicketsPage() {
         // Get tickets for this organization
         const { data: ticketsData, error: ticketsError } = await supabase
           .from('tickets')
-          .select('*')
+          .select(`
+            *,
+            assignee:users!tickets_assigned_to_fkey (
+              name
+            ),
+            customer:users!tickets_created_by_fkey (
+              name
+            )
+          `)
           .eq('organization_id', memberData.organization_id)
           .order('created_at', { ascending: false });
 
@@ -171,6 +186,18 @@ export default function TicketsPage() {
                   onSort={handleSort}
                 />
                 <SortableHeader
+                  label="Assignee"
+                  field="assigned_to"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Customer"
+                  field="created_by"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
                   label="Tag"
                   field="tag"
                   currentSort={sortConfig}
@@ -202,6 +229,14 @@ export default function TicketsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <PriorityBadge priority={ticket.priority} />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {ticket.assignee?.name || (
+                      <span className="text-yellow-600">Unassigned</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {ticket.customer?.name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <TagBadge tag={ticket.tag} />

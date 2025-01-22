@@ -21,9 +21,16 @@ export interface SortableTicket {
   created_at: string;
   organization_id: string;
   tag?: string;
+  assigned_to?: string | null;
+  assignee?: {
+    name: string;
+  } | null;
+  customer?: {
+    name: string;
+  } | null;
 }
 
-type SortableField = keyof SortableTicket;
+type SortableField = keyof SortableTicket | 'created_by';
 
 export function sortTickets(
   tickets: SortableTicket[],
@@ -58,6 +65,20 @@ export function sortTickets(
         return direction === 'asc'
           ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
           : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+
+      case 'assigned_to':
+        const aName = a.assignee?.name || '';
+        const bName = b.assignee?.name || '';
+        return direction === 'asc'
+          ? aName.localeCompare(bName)
+          : bName.localeCompare(aName);
+
+      case 'created_by':
+        const aCustomer = a.customer?.name || '';
+        const bCustomer = b.customer?.name || '';
+        return direction === 'asc'
+          ? aCustomer.localeCompare(bCustomer)
+          : bCustomer.localeCompare(aCustomer);
 
       default:
         return 0;

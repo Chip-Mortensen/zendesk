@@ -4,11 +4,14 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import CreateTicketModal from '@/components/tickets/CreateTicketModal';
-import PriorityBadge from '@/components/tickets/PriorityBadge';
 import SortableHeader from '@/components/table/SortableHeader';
 import { sortTickets, SortableTicket } from '@/utils/sorting';
 
-type Ticket = Omit<SortableTicket, 'tag'>;
+type Ticket = Omit<SortableTicket, 'tag'> & {
+  assignee?: {
+    name: string;
+  } | null;
+};
 
 export default function CustomerTicketsPage() {
   const params = useParams();
@@ -60,8 +63,14 @@ export default function CustomerTicketsPage() {
         // Then get tickets for this organization
         const { data: ticketsData, error: ticketsError } = await supabase
           .from('tickets')
-          .select('*')
+          .select(`
+            *,
+            assignee:users!tickets_assigned_to_fkey (
+              name
+            )
+          `)
           .eq('organization_id', orgData.id)
+          .eq('created_by', session.user.id)
           .order('created_at', { ascending: false });
 
         if (ticketsError) {
@@ -84,39 +93,60 @@ export default function CustomerTicketsPage() {
   useEffect(() => {
     if (!organizationId) return;
 
-    const channel = supabase.channel(`org-tickets-${organizationId}`);
-    
-    const subscription = channel
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tickets',
-          filter: `organization_id=eq.${organizationId}`,
-        },
-        (payload) => {
-          console.log('Realtime update:', payload);
-          if (payload.eventType === 'INSERT') {
-            setTickets(currentTickets => [payload.new as Ticket, ...currentTickets]);
-          } else if (payload.eventType === 'DELETE') {
-            setTickets(currentTickets => 
-              currentTickets.filter(ticket => ticket.id !== payload.old.id)
-            );
-          } else if (payload.eventType === 'UPDATE') {
-            setTickets(currentTickets =>
-              currentTickets.map(ticket =>
-                ticket.id === payload.new.id ? { ...ticket, ...payload.new } : ticket
-              )
-            );
-          }
-        }
-      )
-      .subscribe();
+    async function setupSubscription() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    return () => {
-      subscription.unsubscribe();
-    };
+      const channel = supabase.channel(`org-tickets-${organizationId}`);
+      
+      const subscription = channel
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'tickets',
+            filter: `organization_id=eq.${organizationId} AND created_by=eq.${user.id}`,
+          },
+          async (payload) => {
+            console.log('Realtime update:', payload);
+            if (payload.eventType === 'INSERT') {
+              setTickets(currentTickets => [payload.new as Ticket, ...currentTickets]);
+            } else if (payload.eventType === 'DELETE') {
+              setTickets(currentTickets => 
+                currentTickets.filter(ticket => ticket.id !== payload.old.id)
+              );
+            } else if (payload.eventType === 'UPDATE') {
+              // Fetch the updated ticket with assignee information
+              const { data: updatedTicket } = await supabase
+                .from('tickets')
+                .select(`
+                  *,
+                  assignee:users!tickets_assigned_to_fkey (
+                    name
+                  )
+                `)
+                .eq('id', payload.new.id)
+                .single();
+
+              if (updatedTicket) {
+                setTickets(currentTickets =>
+                  currentTickets.map(ticket =>
+                    ticket.id === payload.new.id ? updatedTicket : ticket
+                  )
+                );
+              }
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+
+    setupSubscription();
   }, [organizationId]);
 
   const handleSort = (field: string) => {
@@ -148,96 +178,103 @@ export default function CustomerTicketsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white shadow rounded-lg">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold">My Tickets</h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Track and manage your support tickets.
-              </p>
+    <>
+      <div className="space-y-6">
+        <div className="bg-white shadow rounded-lg">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold">My Tickets</h1>
+                <p className="mt-1 text-sm text-gray-500">
+                  Track and manage your support tickets.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Create Ticket
+              </button>
             </div>
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Create Ticket
-            </button>
           </div>
-        </div>
 
-        {tickets.length === 0 ? (
-          <div className="p-6 text-gray-500">
-            No tickets found. Create your first ticket to get started.
-          </div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <SortableHeader
-                  label="Title"
-                  field="title"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                />
-                <SortableHeader
-                  label="Status"
-                  field="status"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                />
-                <SortableHeader
-                  label="Priority"
-                  field="priority"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                />
-                <SortableHeader
-                  label="Created"
-                  field="created_at"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                />
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedTickets.map((ticket) => (
-                <tr 
-                  key={ticket.id} 
-                  className="transition-colors duration-150 hover:bg-gray-50 cursor-pointer"
-                  onClick={() => router.push(`/org/${orgSlug}/tickets/${ticket.id}`)}
-                >
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600">{ticket.title}</div>
-                    <div className="text-sm text-gray-500">{ticket.description.substring(0, 100)}...</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
-                      {ticket.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <PriorityBadge priority={ticket.priority} />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(ticket.created_at).toLocaleDateString()}
-                  </td>
+          {tickets.length === 0 ? (
+            <div className="p-6 text-gray-500">
+              No tickets found. Create your first ticket to get started.
+            </div>
+          ) : (
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <SortableHeader
+                    label="Title"
+                    field="title"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    label="Status"
+                    field="status"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    label="Customer Service Rep"
+                    field="assigned_to"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    label="Created"
+                    field="created_at"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {sortedTickets.map((ticket) => (
+                  <tr 
+                    key={ticket.id} 
+                    className="transition-colors duration-150 hover:bg-gray-50 cursor-pointer"
+                    onClick={() => router.push(`/org/${orgSlug}/tickets/${ticket.id}`)}
+                  >
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600">{ticket.title}</div>
+                      <div className="text-sm text-gray-500">{ticket.description.substring(0, 100)}...</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
+                        {ticket.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {ticket.assignee?.name || (
+                        <span className="text-yellow-600">Unassigned</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(ticket.created_at).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {organizationId && (
         <CreateTicketModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
-          onTicketCreated={() => setIsCreateModalOpen(false)}
+          onTicketCreated={(newTicket: Ticket) => {
+            setIsCreateModalOpen(false);
+            setTickets(current => [newTicket, ...current]);
+          }}
           organizationId={organizationId}
         />
       )}
-    </div>
+    </>
   );
 } 
