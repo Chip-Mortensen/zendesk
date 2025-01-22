@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Ticket } from '@/types/tickets';
 import { ticketQueries } from '@/utils/sql/ticketQueries';
 import { supabase } from '@/utils/supabase';
+import Select from '@/components/common/Select';
 
 interface User {
   id: string;
@@ -97,85 +98,74 @@ export default function TicketActions({
     }
   };
 
-  const selectClassName = "w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500";
+  const statusOptions = [
+    { label: 'Open', value: 'open' },
+    { label: 'In Progress', value: 'in_progress' },
+    { label: 'Closed', value: 'closed' }
+  ];
+
+  const priorityOptions = [
+    { label: 'Low', value: 'low' },
+    { label: 'Medium', value: 'medium' },
+    { label: 'High', value: 'high' }
+  ];
+
+  const assigneeOptions = assignees.map(assignee => ({
+    label: assignee.name,
+    value: assignee.id
+  }));
+
+  const tagOptions = [
+    { label: 'No tag', value: '' },
+    ...availableTags.map(tag => ({ label: tag, value: tag })),
+    { label: '+ Add new tag', value: 'new' }
+  ];
 
   return (
     <div className="grid grid-cols-4 gap-4">
       <div>
-        <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
           Status
         </label>
-        <select
-          id="status"
+        <Select
+          label="Status"
           value={ticket.status}
-          onChange={(e) => onStatusChange(e.target.value as Ticket['status'])}
-          className={selectClassName}
-        >
-          <option value="open">Open</option>
-          <option value="in_progress">In Progress</option>
-          <option value="closed">Closed</option>
-        </select>
+          options={statusOptions}
+          onChange={(value) => onStatusChange(value as Ticket['status'])}
+        />
       </div>
 
       <div>
-        <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
           Priority
         </label>
-        <select
-          id="priority"
+        <Select
+          label="Priority"
           value={ticket.priority}
-          onChange={(e) => onPriorityChange(e.target.value as Ticket['priority'])}
-          className={selectClassName}
-        >
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
+          options={priorityOptions}
+          onChange={(value) => onPriorityChange(value as Ticket['priority'])}
+        />
       </div>
 
       <div>
-        <label htmlFor="assignee" className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
           Assignee
         </label>
-        {loadingAssignees ? (
-          <div className="text-sm text-gray-500">Loading...</div>
-        ) : ticket.assigned_to ? (
-          <select
-            id="assignee"
-            value={ticket.assigned_to}
-            onChange={(e) => onAssigneeChange(e.target.value)}
-            className={selectClassName}
-          >
-            {assignees.map((assignee) => (
-              <option key={assignee.id} value={assignee.id}>
-                {assignee.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <select
-            id="assignee"
-            value=""
-            onChange={(e) => onAssigneeChange(e.target.value)}
-            className={selectClassName}
-          >
-            <option value="" disabled>Select assignee</option>
-            {assignees.map((assignee) => (
-              <option key={assignee.id} value={assignee.id}>
-                {assignee.name}
-              </option>
-            ))}
-          </select>
-        )}
+        <Select
+          label="Assignee"
+          value={ticket.assigned_to || ''}
+          options={assigneeOptions}
+          onChange={(value) => onAssigneeChange(value)}
+          isLoading={loadingAssignees}
+          placeholder="Select assignee"
+        />
       </div>
 
       <div>
-        <label htmlFor="tag" className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
           Tag
         </label>
-        {loadingTags ? (
-          <div className="text-sm text-gray-500">Loading...</div>
-        ) : isAddingNewTag ? (
+        {isAddingNewTag ? (
           <div className="flex gap-2">
             <input
               type="text"
@@ -198,20 +188,13 @@ export default function TicketActions({
             </button>
           </div>
         ) : (
-          <select
-            id="tag"
+          <Select
+            label="Tag"
             value={ticket.tag || ''}
-            onChange={(e) => handleTagChange(e.target.value)}
-            className={selectClassName}
-          >
-            <option value="">No tag</option>
-            {availableTags.map((tag) => (
-              <option key={tag} value={tag}>
-                {tag}
-              </option>
-            ))}
-            <option value="new">+ Add new tag</option>
-          </select>
+            options={tagOptions}
+            onChange={handleTagChange}
+            isLoading={loadingTags}
+          />
         )}
       </div>
     </div>

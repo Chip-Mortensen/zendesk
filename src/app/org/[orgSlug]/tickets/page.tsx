@@ -6,6 +6,7 @@ import { supabase } from '@/utils/supabase';
 import CreateTicketModal from '@/components/tickets/CreateTicketModal';
 import SortableHeader from '@/components/table/SortableHeader';
 import { sortTickets, SortableTicket } from '@/utils/sorting';
+import Link from 'next/link';
 
 type Ticket = Omit<SortableTicket, 'tag'> & {
   assignee?: {
@@ -178,89 +179,83 @@ export default function CustomerTicketsPage() {
   }
 
   return (
-    <>
-      <div className="space-y-6">
-        <div className="bg-white shadow rounded-lg">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-2xl font-bold">My Tickets</h1>
-                <p className="mt-1 text-sm text-gray-500">
-                  Track and manage your support tickets.
-                </p>
-              </div>
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Create Ticket
-              </button>
+    <div className="space-y-6">
+      <div className="bg-white shadow rounded-lg">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">Support Tickets</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                View and track your support tickets.
+              </p>
             </div>
+            <Link
+              href={`/org/${params.orgSlug}/tickets/new`}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+            >
+              New Ticket
+            </Link>
           </div>
+        </div>
 
-          {tickets.length === 0 ? (
-            <div className="p-6 text-gray-500">
-              No tickets found. Create your first ticket to get started.
-            </div>
-          ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <SortableHeader
-                    label="Title"
-                    field="title"
-                    currentSort={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableHeader
-                    label="Status"
-                    field="status"
-                    currentSort={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableHeader
-                    label="Customer Service Rep"
-                    field="assigned_to"
-                    currentSort={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableHeader
-                    label="Created"
-                    field="created_at"
-                    currentSort={sortConfig}
-                    onSort={handleSort}
-                  />
+        <div className="max-h-[calc(100vh-24rem)] overflow-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                <SortableHeader
+                  label="Title"
+                  field="title"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Status"
+                  field="status"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Priority"
+                  field="priority"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Created"
+                  field="created_at"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {sortedTickets.map((ticket) => (
+                <tr 
+                  key={ticket.id} 
+                  className="transition-colors duration-150 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => router.push(`/org/${orgSlug}/tickets/${ticket.id}`)}
+                >
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600">{ticket.title}</div>
+                    <div className="text-sm text-gray-500">{ticket.description.substring(0, 100)}...</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
+                      {ticket.status.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {ticket.assignee?.name || (
+                      <span className="text-yellow-600">Unassigned</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(ticket.created_at).toLocaleDateString()}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sortedTickets.map((ticket) => (
-                  <tr 
-                    key={ticket.id} 
-                    className="transition-colors duration-150 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => router.push(`/org/${orgSlug}/tickets/${ticket.id}`)}
-                  >
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600">{ticket.title}</div>
-                      <div className="text-sm text-gray-500">{ticket.description.substring(0, 100)}...</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
-                        {ticket.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {ticket.assignee?.name || (
-                        <span className="text-yellow-600">Unassigned</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(ticket.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -275,6 +270,6 @@ export default function CustomerTicketsPage() {
           organizationId={organizationId}
         />
       )}
-    </>
+    </div>
   );
 } 

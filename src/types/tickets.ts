@@ -11,6 +11,12 @@ export type Ticket = {
   created_at: string;
   updated_at: string;
   tag?: string;
+  assignee?: {
+    name: string;
+  } | null;
+  customer?: {
+    name: string;
+  } | null;
 };
 
 // Base event type

@@ -175,37 +175,39 @@ export default function CustomerChatPage() {
         </div>
 
         <div className="border-t border-gray-200">
-          {conversations.length === 0 ? (
-            <p className="p-6 text-gray-500">No conversations yet. Start one above!</p>
-          ) : (
+          <div className="max-h-[calc(100vh-24rem)] overflow-auto">
             <div className="divide-y divide-gray-200">
-              {conversations.map((conversation) => (
-                <div
-                  key={conversation.id}
-                  className="p-6 hover:bg-gray-50 cursor-pointer"
-                  onClick={() => handleConversationClick(conversation.id)}
-                >
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-medium">{conversation.subject}</h3>
-                    <span className="px-2 py-1 text-xs font-medium rounded-full capitalize" 
-                      style={{
-                        backgroundColor: conversation.status === 'open' ? '#E5F6FD' : 
-                                      conversation.status === 'in_progress' ? '#FDF6B2' : 
-                                      '#F3F4F6',
-                        color: conversation.status === 'open' ? '#0284C7' : 
-                               conversation.status === 'in_progress' ? '#92400E' : 
-                               '#374151'
-                      }}>
-                      {formatStatus(conversation.status)}
-                    </span>
+              {conversations.length === 0 ? (
+                <p className="p-6 text-gray-500">No conversations yet. Start one above!</p>
+              ) : (
+                conversations.map((conversation) => (
+                  <div
+                    key={conversation.id}
+                    className="p-6 hover:bg-gray-50 cursor-pointer"
+                    onClick={() => handleConversationClick(conversation.id)}
+                  >
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-lg font-medium">{conversation.subject}</h3>
+                      <span className="px-2 py-1 text-xs font-medium rounded-full capitalize" 
+                        style={{
+                          backgroundColor: conversation.status === 'open' ? '#E5F6FD' : 
+                                        conversation.status === 'in_progress' ? '#FDF6B2' : 
+                                        '#F3F4F6',
+                          color: conversation.status === 'open' ? '#0284C7' : 
+                                 conversation.status === 'in_progress' ? '#92400E' : 
+                                 '#374151'
+                        }}>
+                        {formatStatus(conversation.status)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Started {new Date(conversation.created_at).toLocaleDateString()}
+                    </p>
                   </div>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Started {new Date(conversation.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

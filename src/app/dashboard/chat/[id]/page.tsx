@@ -6,6 +6,7 @@ import { supabase } from '@/utils/supabase';
 import { Conversation, ChatEventWithUser, ChatMessageEvent } from '@/types/chat';
 import { chatQueries, eventQueries } from '@/utils/sql/chatQueries';
 import ConversationTimeline from '@/components/chat/ConversationTimeline';
+import Select from '@/components/common/Select';
 
 export default function AdminConversationDetailPage() {
   const params = useParams();
@@ -85,9 +86,9 @@ export default function AdminConversationDetailPage() {
     }
   }, [conversation?.id]);
 
-  async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
+  async function handleStatusChange(value: string) {
     if (!conversation || updating) return;
-    const newStatus = e.target.value as 'open' | 'in_progress' | 'closed';
+    const newStatus = value as 'open' | 'in_progress' | 'closed';
     setUpdating(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -102,9 +103,9 @@ export default function AdminConversationDetailPage() {
     }
   }
 
-  async function handleAssigneeChange(e: React.ChangeEvent<HTMLSelectElement>) {
+  async function handleAssigneeChange(value: string) {
     if (!conversation || updating) return;
-    const newAssigneeId = e.target.value || null;
+    const newAssigneeId = value || null;
     setUpdating(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -172,30 +173,31 @@ export default function AdminConversationDetailPage() {
               </p>
             </div>
             <div className="flex items-center space-x-4">
-              <select
+              <Select
+                label="Status"
                 value={conversation.status}
+                options={[
+                  { label: 'Open', value: 'open' },
+                  { label: 'In Progress', value: 'in_progress' },
+                  { label: 'Resolved', value: 'resolved' }
+                ]}
                 onChange={handleStatusChange}
-                disabled={updating}
-                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              >
-                <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
-                <option value="resolved">Resolved</option>
-              </select>
+                isLoading={updating}
+              />
 
-              <select
+              <Select
+                label="Assignee"
                 value={conversation.assigned_to || ''}
+                options={[
+                  { label: 'Unassigned', value: '' },
+                  ...assignees.map(assignee => ({
+                    label: assignee.name,
+                    value: assignee.id
+                  }))
+                ]}
                 onChange={handleAssigneeChange}
-                disabled={updating}
-                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              >
-                <option value="">Unassigned</option>
-                {assignees.map((assignee) => (
-                  <option key={assignee.id} value={assignee.id}>
-                    {assignee.name}
-                  </option>
-                ))}
-              </select>
+                isLoading={updating}
+              />
             </div>
           </div>
         </div>

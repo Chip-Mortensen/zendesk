@@ -101,48 +101,50 @@ export default function AdminChatPage() {
           </p>
         </div>
 
-        <div className="divide-y divide-gray-200">
-          {conversations.length === 0 ? (
-            <p className="p-6 text-gray-500">No conversations yet.</p>
-          ) : (
-            conversations.map((conversation) => (
-              <div
-                key={conversation.id}
-                className="p-6 hover:bg-gray-50 cursor-pointer"
-                onClick={() => handleConversationClick(conversation.id)}
-              >
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">{conversation.subject}</h3>
-                  <div className="flex items-center space-x-3">
-                    {!conversation.assigned_to && (
-                      <span className="px-2 py-1 text-xs font-medium rounded-full text-yellow-800 bg-yellow-100">
-                        Unassigned
+        <div className="max-h-[calc(100vh-24rem)] overflow-auto">
+          <div className="divide-y divide-gray-200">
+            {conversations.length === 0 ? (
+              <p className="p-6 text-gray-500">No conversations yet.</p>
+            ) : (
+              conversations.map((conversation) => (
+                <div
+                  key={conversation.id}
+                  className="p-6 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => handleConversationClick(conversation.id)}
+                >
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">{conversation.subject}</h3>
+                    <div className="flex items-center space-x-3">
+                      {!conversation.assigned_to && (
+                        <span className="px-2 py-1 text-xs font-medium rounded-full text-yellow-800 bg-yellow-100">
+                          Unassigned
+                        </span>
+                      )}
+                      {conversation.assigned_to && (
+                        <span className="px-2 py-1 text-xs font-medium rounded-full text-blue-800 bg-blue-100">
+                          {conversation.assignee?.name}
+                        </span>
+                      )}
+                      <span className="px-2 py-1 text-xs font-medium rounded-full capitalize" 
+                        style={{
+                          backgroundColor: conversation.status === 'open' ? '#E5F6FD' : 
+                                        conversation.status === 'in_progress' ? '#FDF6B2' : 
+                                        '#F3F4F6',
+                          color: conversation.status === 'open' ? '#0284C7' : 
+                                 conversation.status === 'in_progress' ? '#92400E' : 
+                                 '#374151'
+                        }}>
+                        {formatStatus(conversation.status)}
                       </span>
-                    )}
-                    {conversation.assigned_to && (
-                      <span className="px-2 py-1 text-xs font-medium rounded-full text-blue-800 bg-blue-100">
-                        {conversation.assignee?.name}
-                      </span>
-                    )}
-                    <span className="px-2 py-1 text-xs font-medium rounded-full capitalize" 
-                      style={{
-                        backgroundColor: conversation.status === 'open' ? '#E5F6FD' : 
-                                      conversation.status === 'in_progress' ? '#FDF6B2' : 
-                                      '#F3F4F6',
-                        color: conversation.status === 'open' ? '#0284C7' : 
-                               conversation.status === 'in_progress' ? '#92400E' : 
-                               '#374151'
-                      }}>
-                      {formatStatus(conversation.status)}
-                    </span>
+                    </div>
                   </div>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Started {new Date(conversation.created_at).toLocaleDateString()}
+                  </p>
                 </div>
-                <p className="mt-1 text-sm text-gray-500">
-                  Started {new Date(conversation.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

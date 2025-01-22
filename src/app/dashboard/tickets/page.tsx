@@ -6,16 +6,10 @@ import { supabase } from '@/utils/supabase';
 import PriorityBadge from '@/components/tickets/PriorityBadge';
 import TagBadge from '@/components/tickets/TagBadge';
 import SortableHeader from '@/components/table/SortableHeader';
-import { sortTickets, SortableTicket } from '@/utils/sorting';
-
-type Ticket = SortableTicket & {
-  assignee?: {
-    name: string;
-  } | null;
-  customer?: {
-    name: string;
-  } | null;
-};
+import { sortTickets } from '@/utils/sorting';
+import TicketFilters, { TicketFilters as TicketFiltersType } from '@/components/tickets/TicketFilters';
+import { isToday, isThisWeek } from 'date-fns';
+import { Ticket } from '@/types/tickets';
 
 export default function TicketsPage() {
   const router = useRouter();
@@ -25,6 +19,14 @@ export default function TicketsPage() {
   const [sortConfig, setSortConfig] = useState<{ field: string; direction: 'asc' | 'desc' }>({
     field: 'created_at',
     direction: 'desc'
+  });
+  const [filters, setFilters] = useState<TicketFiltersType>({
+    status: [],
+    priority: [],
+    assignee: [],
+    customer: [],
+    tag: [],
+    created: []
   });
 
   useEffect(() => {
@@ -130,9 +132,26 @@ export default function TicketsPage() {
     }));
   };
 
+  const filteredTickets = useMemo(() => {
+    return tickets.filter(ticket => {
+      const matchesStatus = filters.status.length === 0 || filters.status.includes(ticket.status);
+      const matchesPriority = filters.priority.length === 0 || filters.priority.includes(ticket.priority);
+      const matchesAssignee = filters.assignee.length === 0 || filters.assignee.includes(ticket.assignee?.name || '');
+      const matchesCustomer = filters.customer.length === 0 || filters.customer.includes(ticket.customer?.name || '');
+      const matchesTag = filters.tag.length === 0 || filters.tag.includes(ticket.tag || '');
+      const matchesCreated = filters.created.length === 0 || filters.created.some(dateFilter => {
+        if (dateFilter === 'today') return isToday(new Date(ticket.created_at));
+        if (dateFilter === 'this_week') return isThisWeek(new Date(ticket.created_at));
+        return true;
+      });
+
+      return matchesStatus && matchesPriority && matchesAssignee && matchesCustomer && matchesTag && matchesCreated;
+    });
+  }, [tickets, filters]);
+
   const sortedTickets = useMemo(() => {
-    return sortTickets(tickets, sortConfig.field, sortConfig.direction);
-  }, [tickets, sortConfig]);
+    return sortTickets(filteredTickets, sortConfig.field, sortConfig.direction);
+  }, [filteredTickets, sortConfig]);
 
   const getStatusColor = (status: Ticket['status']) => {
     switch (status) {
@@ -155,17 +174,25 @@ export default function TicketsPage() {
     <div className="space-y-6">
       <div className="bg-white shadow rounded-lg">
         <div className="p-6 border-b border-gray-200">
-          <h1 className="text-2xl font-bold">Support Tickets</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            View and manage all customer support tickets.
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold">Support Tickets</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              View and manage all customer support tickets.
+            </p>
+          </div>
         </div>
 
-        {tickets.length === 0 ? (
-          <div className="p-6 text-gray-500">No tickets found</div>
-        ) : (
+        <div className="border-b border-gray-200">
+          <TicketFilters
+            tickets={tickets}
+            filters={filters}
+            onFiltersChange={setFilters}
+          />
+        </div>
+
+        <div className="max-h-[calc(100vh-24rem)] overflow-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0">
               <tr>
                 <SortableHeader
                   label="Title"
@@ -248,7 +275,7 @@ export default function TicketsPage() {
               ))}
             </tbody>
           </table>
-        )}
+        </div>
       </div>
     </div>
   );
