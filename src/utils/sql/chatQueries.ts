@@ -22,7 +22,12 @@ export const chatQueries = {
   async getOrgConversations(organizationId: string) {
     return await supabase
       .from('conversations')
-      .select('*')
+      .select(`
+        *,
+        assignee:users!conversations_assigned_to_fkey (
+          name
+        )
+      `)
       .eq('organization_id', organizationId)
       .order('created_at', { ascending: false });
   },

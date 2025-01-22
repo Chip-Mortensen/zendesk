@@ -18,8 +18,6 @@ interface TicketActionsProps {
   onAssigneeChange: (newAssigneeId: string | null) => void;
 }
 
-const selectClassName = "w-[180px] rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500";
-
 export default function TicketActions({
   ticket,
   onStatusChange,
@@ -99,125 +97,122 @@ export default function TicketActions({
     }
   };
 
+  const selectClassName = "w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500";
+
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-      <div className="px-4 py-3 border-b border-gray-200">
-        <h3 className="text-sm font-medium text-gray-900">Ticket Actions</h3>
+    <div className="grid grid-cols-4 gap-4">
+      <div>
+        <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+          Status
+        </label>
+        <select
+          id="status"
+          value={ticket.status}
+          onChange={(e) => onStatusChange(e.target.value as Ticket['status'])}
+          className={selectClassName}
+        >
+          <option value="open">Open</option>
+          <option value="in_progress">In Progress</option>
+          <option value="closed">Closed</option>
+        </select>
       </div>
-      <div className="px-4 py-3 space-y-4">
-        <div className="flex items-center justify-between">
-          <label htmlFor="status" className="block text-sm font-medium text-gray-700">
-            Status
-          </label>
+
+      <div>
+        <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
+          Priority
+        </label>
+        <select
+          id="priority"
+          value={ticket.priority}
+          onChange={(e) => onPriorityChange(e.target.value as Ticket['priority'])}
+          className={selectClassName}
+        >
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="assignee" className="block text-sm font-medium text-gray-700 mb-1">
+          Assignee
+        </label>
+        {loadingAssignees ? (
+          <div className="text-sm text-gray-500">Loading...</div>
+        ) : ticket.assigned_to ? (
           <select
-            id="status"
-            value={ticket.status}
-            onChange={(e) => onStatusChange(e.target.value as Ticket['status'])}
+            id="assignee"
+            value={ticket.assigned_to}
+            onChange={(e) => onAssigneeChange(e.target.value)}
             className={selectClassName}
           >
-            <option value="open">Open</option>
-            <option value="in_progress">In Progress</option>
-            <option value="closed">Closed</option>
+            {assignees.map((assignee) => (
+              <option key={assignee.id} value={assignee.id}>
+                {assignee.name}
+              </option>
+            ))}
           </select>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <label htmlFor="priority" className="block text-sm font-medium text-gray-700">
-            Priority
-          </label>
+        ) : (
           <select
-            id="priority"
-            value={ticket.priority}
-            onChange={(e) => onPriorityChange(e.target.value as Ticket['priority'])}
+            id="assignee"
+            value=""
+            onChange={(e) => onAssigneeChange(e.target.value)}
             className={selectClassName}
           >
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
+            <option value="" disabled>Select assignee</option>
+            {assignees.map((assignee) => (
+              <option key={assignee.id} value={assignee.id}>
+                {assignee.name}
+              </option>
+            ))}
           </select>
-        </div>
+        )}
+      </div>
 
-        <div className="flex items-center justify-between">
-          <label htmlFor="assignee" className="block text-sm font-medium text-gray-700">
-            Assignee
-          </label>
-          {loadingAssignees ? (
-            <div className="text-sm text-gray-500 w-[180px] text-right">Loading...</div>
-          ) : ticket.assigned_to ? (
-            <select
-              id="assignee"
-              value={ticket.assigned_to}
-              onChange={(e) => onAssigneeChange(e.target.value)}
-              className={selectClassName}
+      <div>
+        <label htmlFor="tag" className="block text-sm font-medium text-gray-700 mb-1">
+          Tag
+        </label>
+        {loadingTags ? (
+          <div className="text-sm text-gray-500">Loading...</div>
+        ) : isAddingNewTag ? (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              className="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+              placeholder="New tag"
+            />
+            <button
+              onClick={handleNewTagSubmit}
+              className="px-2 py-1 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 shrink-0"
             >
-              {assignees.map((assignee) => (
-                <option key={assignee.id} value={assignee.id}>
-                  {assignee.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <select
-              id="assignee"
-              value=""
-              onChange={(e) => onAssigneeChange(e.target.value)}
-              className={selectClassName}
+              Add
+            </button>
+            <button
+              onClick={() => setIsAddingNewTag(false)}
+              className="px-2 py-1 text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded hover:bg-gray-50 shrink-0"
             >
-              <option value="" disabled>Select assignee</option>
-              {assignees.map((assignee) => (
-                <option key={assignee.id} value={assignee.id}>
-                  {assignee.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between">
-          <label htmlFor="tag" className="block text-sm font-medium text-gray-700">
-            Tag
-          </label>
-          {loadingTags ? (
-            <div className="text-sm text-gray-500 w-[180px] text-right">Loading...</div>
-          ) : isAddingNewTag ? (
-            <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                className="w-[140px] h-9 rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="New tag"
-              />
-              <button
-                onClick={handleNewTagSubmit}
-                className="h-9 px-3 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
-              >
-                Add
-              </button>
-              <button
-                onClick={() => setIsAddingNewTag(false)}
-                className="h-9 px-3 text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <select
-              id="tag"
-              value={ticket.tag || ''}
-              onChange={(e) => handleTagChange(e.target.value)}
-              className={selectClassName}
-            >
-              <option value="">No tag</option>
-              {availableTags.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-              <option value="new">+ Add new tag</option>
-            </select>
-          )}
-        </div>
+              ×
+            </button>
+          </div>
+        ) : (
+          <select
+            id="tag"
+            value={ticket.tag || ''}
+            onChange={(e) => handleTagChange(e.target.value)}
+            className={selectClassName}
+          >
+            <option value="">No tag</option>
+            {availableTags.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+            <option value="new">+ Add new tag</option>
+          </select>
+        )}
       </div>
     </div>
   );

@@ -148,23 +148,30 @@ export default function CustomerTicketsPage() {
   }
 
   return (
-    <div className="space-y-6 p-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-gray-900">My Tickets</h1>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          Create Ticket
-        </button>
-      </div>
-
-      {tickets.length === 0 ? (
-        <div className="text-center py-12 bg-white shadow rounded-lg">
-          <p className="text-gray-500">No tickets found. Create your first ticket to get started.</p>
+    <div className="space-y-6">
+      <div className="bg-white shadow rounded-lg">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">My Tickets</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Track and manage your support tickets.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Create Ticket
+            </button>
+          </div>
         </div>
-      ) : (
-        <div className="bg-white shadow rounded-lg">
+
+        {tickets.length === 0 ? (
+          <div className="p-6 text-gray-500">
+            No tickets found. Create your first ticket to get started.
+          </div>
+        ) : (
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -220,8 +227,8 @@ export default function CustomerTicketsPage() {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
 
       {organizationId && (
         <CreateTicketModal

@@ -186,75 +186,77 @@ export default function EditArticlePage() {
   }
 
   return (
-    <>
-      <div className="space-y-6 p-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <nav className="flex mb-4" aria-label="Breadcrumb">
-              <ol className="flex items-center space-x-4">
-                <li>
-                  <Link href="/dashboard/kb" className="text-sm font-medium text-gray-500 hover:text-gray-700">
-                    Knowledge Base
-                  </Link>
-                </li>
-                <li>
-                  <div className="flex items-center">
-                    <span className="text-gray-400 mx-2">/</span>
-                    <Link
-                      href={`/dashboard/kb/${article.id}`}
-                      className="text-sm font-medium text-gray-500 hover:text-gray-700 truncate"
-                    >
-                      {article.title}
+    <div className="space-y-6 p-4">
+      <div className="bg-white shadow rounded-lg">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <nav className="flex" aria-label="Breadcrumb">
+                <ol className="flex items-center space-x-4">
+                  <li>
+                    <Link href="/dashboard/kb" className="text-sm font-medium text-gray-500 hover:text-gray-700">
+                      Knowledge Base
                     </Link>
-                  </div>
-                </li>
-                <li>
-                  <div className="flex items-center">
-                    <span className="text-gray-400 mx-2">/</span>
-                    <span className="text-sm font-medium text-gray-500 truncate">
-                      Edit
-                    </span>
-                  </div>
-                </li>
-              </ol>
-            </nav>
-          </div>
-          <div className="flex gap-4">
-            <button
-              onClick={() => router.push('/dashboard/kb')}
-              className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-              disabled={saving || publishing}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-              disabled={saving || publishing}
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-            <button
-              onClick={article.status === 'published' ? handleUnpublish : handlePublish}
-              className={`px-4 py-2 rounded text-white disabled:opacity-50 ${
-                article.status === 'published'
-                  ? 'bg-yellow-500 hover:bg-yellow-600'
-                  : 'bg-green-500 hover:bg-green-600'
-              }`}
-              disabled={saving || publishing}
-            >
-              {publishing
-                ? 'Processing...'
-                : article.status === 'published'
-                ? 'Unpublish'
-                : 'Publish'}
-            </button>
+                  </li>
+                  <li>
+                    <div className="flex items-center">
+                      <span className="text-gray-400 mx-2">/</span>
+                      <Link
+                        href={`/dashboard/kb/${article.id}`}
+                        className="text-sm font-medium text-gray-500 hover:text-gray-700 truncate"
+                      >
+                        {article.title}
+                      </Link>
+                    </div>
+                  </li>
+                  <li>
+                    <div className="flex items-center">
+                      <span className="text-gray-400 mx-2">/</span>
+                      <span className="text-sm font-medium text-gray-500 truncate">
+                        Edit
+                      </span>
+                    </div>
+                  </li>
+                </ol>
+              </nav>
+            </div>
+            <div className="flex gap-4">
+              <button
+                onClick={() => router.push('/dashboard/kb')}
+                className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+                disabled={saving || publishing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                disabled={saving || publishing}
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={article.status === 'published' ? handleUnpublish : handlePublish}
+                className={`px-4 py-2 rounded text-white disabled:opacity-50 ${
+                  article.status === 'published'
+                    ? 'bg-yellow-500 hover:bg-yellow-600'
+                    : 'bg-green-500 hover:bg-green-600'
+                }`}
+                disabled={saving || publishing}
+              >
+                {publishing
+                  ? 'Processing...'
+                  : article.status === 'published'
+                  ? 'Unpublish'
+                  : 'Publish'}
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="p-6 space-y-6">
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
               Title
             </label>
             <input
@@ -262,62 +264,64 @@ export default function EditArticlePage() {
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Article title"
             />
           </div>
 
           <div>
-            <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-2">
               Content
             </label>
-            <MarkdownEditor
-              value={content}
-              onChange={setContent}
-              preview={false}
-              height={500}
-            />
+            <div className="rounded-lg overflow-hidden border border-gray-300">
+              <MarkdownEditor
+                value={content}
+                onChange={setContent}
+                preview={false}
+                height={500}
+              />
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Attachments
             </label>
             <AttachmentPanel
               articleId={article.id}
               organizationId={organizationId!}
-              className="border rounded-lg p-4"
+              className="border rounded-lg p-4 bg-gray-50"
               attachments={attachments}
               onAttachmentAdded={handleAttachmentAdded}
               onAttachmentDeleted={handleAttachmentDeleted}
             />
           </div>
         </div>
+      </div>
 
-        <div className="flex justify-end space-x-3">
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-            disabled={isDeleting}
-          >
-            {isDeleting ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                Deleting...
-              </>
-            ) : (
-              <>
-                <svg className="-ml-0.5 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Delete Article
-              </>
-            )}
-          </button>
-        </div>
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+          disabled={isDeleting}
+        >
+          {isDeleting ? (
+            <>
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Deleting...
+            </>
+          ) : (
+            <>
+              <svg className="-ml-0.5 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Delete Article
+            </>
+          )}
+        </button>
       </div>
 
       {showDeleteModal && (
@@ -366,6 +370,6 @@ export default function EditArticlePage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 } 

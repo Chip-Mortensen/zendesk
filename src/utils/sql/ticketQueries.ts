@@ -291,7 +291,7 @@ export const subscriptionHelpers = {
               .from('ticket_events')
               .select(`
                 *,
-                users!inner (
+                users (
                   id,
                   name,
                   email

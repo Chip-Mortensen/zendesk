@@ -69,40 +69,62 @@ export default function DraftArticlesPage() {
   if (error) return <div className="p-4 text-red-500">{error}</div>;
 
   return (
-    <div className="p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Draft Articles</h1>
-        <Link
-          href="/dashboard/kb/new"
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-        >
-          Create New Article
-        </Link>
-      </div>
-
-      <div className="grid gap-4">
-        {articles.map((article) => (
-          <div
-            key={article.id}
-            className="border rounded-lg p-4 hover:border-blue-500 transition-colors"
-          >
-            <Link href={`/dashboard/kb/${article.id}/edit`} className="block">
-              <h2 className="text-xl font-semibold mb-2">{article.title}</h2>
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>Created by {article.author_name}</span>
-                <span>Last updated {new Date(article.updated_at).toLocaleDateString()}</span>
-              </div>
+    <div className="space-y-6 p-4">
+      <div className="bg-white shadow rounded-lg">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">Draft Articles</h1>
+              <p className="mt-1 text-sm text-gray-500">Manage your unpublished knowledge base articles.</p>
+            </div>
+            <Link
+              href="/dashboard/kb/new"
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+            >
+              Create New Article
             </Link>
           </div>
-        ))}
+        </div>
 
-        {articles.length === 0 && (
-          <div className="col-span-full">
-            <p className="text-gray-500 text-center py-8">
-              No draft articles yet. Click &quot;Create New Article&quot; to get started.
-            </p>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {articles.map((article) => (
+              <Link
+                key={article.id}
+                href={`/dashboard/kb/${article.id}/edit`}
+                className="group block bg-white border rounded-lg hover:border-blue-500 hover:shadow-md transition-all duration-200 h-full"
+              >
+                <div className="p-6 flex flex-col h-full">
+                  <div className="flex-1">
+                    <h2 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600 mb-2">
+                      {article.title}
+                    </h2>
+                    <p className="text-gray-600 text-sm line-clamp-3">
+                      {article.content}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-gray-500 pt-4 border-t mt-4">
+                    <div className="flex items-center">
+                      <span className="inline-block w-6 h-6 bg-gray-100 rounded-full mr-2 flex items-center justify-center">
+                        {article.author_name?.charAt(0) || 'A'}
+                      </span>
+                      <span>{article.author_name}</span>
+                    </div>
+                    <span>Last updated {new Date(article.updated_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+
+            {articles.length === 0 && (
+              <div className="col-span-full">
+                <p className="text-gray-500 text-center py-8">
+                  No draft articles yet. Click &quot;Create New Article&quot; to get started.
+                </p>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

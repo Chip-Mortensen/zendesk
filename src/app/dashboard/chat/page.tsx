@@ -119,6 +119,11 @@ export default function AdminChatPage() {
                         Unassigned
                       </span>
                     )}
+                    {conversation.assigned_to && (
+                      <span className="px-2 py-1 text-xs font-medium rounded-full text-blue-800 bg-blue-100">
+                        {conversation.assignee?.name}
+                      </span>
+                    )}
                     <span className="px-2 py-1 text-xs font-medium rounded-full capitalize" 
                       style={{
                         backgroundColor: conversation.status === 'open' ? '#E5F6FD' : 

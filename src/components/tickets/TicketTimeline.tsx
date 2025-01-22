@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TicketEventWithUser } from '@/types/tickets';
 import { supabase } from '@/utils/supabase';
 import TimelineEvent from '@/components/tickets/TimelineEvent';
@@ -14,33 +14,39 @@ interface TicketTimelineProps {
 }
 
 export default function TicketTimeline({ events: initialEvents, ticketId, isAdmin = false, onEventsUpdate }: TicketTimelineProps) {
-  const [localEvents, setLocalEvents] = useState<TicketEventWithUser[]>(initialEvents);
-  const filteredEvents = localEvents.filter(event => {
-    // Show all events to admins
-    if (isAdmin) return true;
-    // For non-admins, hide tag changes and notes
-    return !['tag_change', 'note'].includes(event.event_type);
-  });
+  const [events, setEvents] = useState<TicketEventWithUser[]>(initialEvents);
+  const timelineEndRef = useRef<HTMLDivElement>(null);
   const [newMessage, setNewMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Keep local events in sync with prop updates
+  // Filter events based on user type
+  const filteredEvents = events.filter(event => {
+    if (isAdmin) return true;
+    return !['tag_change', 'note', 'priority_change'].includes(event.event_type);
+  });
+
+  // Keep events in sync with props
   useEffect(() => {
-    setLocalEvents(initialEvents);
+    setEvents(initialEvents);
   }, [initialEvents]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    timelineEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [filteredEvents]);
+
+  // Handle state updates in one place
+  const updateEvents = (newEvents: TicketEventWithUser[]) => {
+    setEvents(newEvents);
+    if (onEventsUpdate) {
+      onEventsUpdate(() => newEvents);
+    }
+  };
 
   // Subscribe to real-time updates
   useTicketTimelineSubscription(ticketId, (updater) => {
-    // Always update local state
-    setLocalEvents(currentEvents => {
-      const updatedEvents = updater(currentEvents);
-      return updatedEvents;
-    });
-    
-    // If parent provided update handler, call it too
-    if (onEventsUpdate) {
-      onEventsUpdate(updater);
-    }
+    const newEvents = updater(events);
+    updateEvents(newEvents);
   });
 
   async function handleSubmit(e: React.FormEvent, type: 'comment' | 'note' = 'comment') {
@@ -65,21 +71,22 @@ export default function TicketTimeline({ events: initialEvents, ticketId, isAdmi
       setNewMessage('');
     } catch (error) {
       console.error('Error adding message:', error);
+      alert('Failed to send message. Please try again.');
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-gray-900">Timeline</h2>
-      <div className="space-y-4">
+    <div className="bg-white shadow rounded-lg">
+      <div className="h-[400px] overflow-y-auto p-6 space-y-4">
         {filteredEvents.map((event) => (
           <TimelineEvent key={event.id} event={event} />
         ))}
+        <div ref={timelineEndRef} />
       </div>
 
-      <form onSubmit={(e) => handleSubmit(e)} className="mt-6">
+      <form onSubmit={(e) => handleSubmit(e)} className="border-t border-gray-200 p-4">
         <div>
           <label htmlFor="message" className="sr-only">
             Add comment or note

@@ -7,6 +7,9 @@ export type Conversation = {
   organization_id: string;
   created_at: string;
   updated_at: string;
+  assignee?: {
+    name: string;
+  } | null;
 };
 
 // Base event type

@@ -90,80 +90,66 @@ export default function CustomerArticleDetailPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <div className="flex justify-between items-center">
-          <nav className="flex" aria-label="Breadcrumb">
-            <ol className="flex items-center space-x-4">
-              <li>
-                <Link 
-                  href={`/org/${params.orgSlug}/kb`} 
-                  className="text-sm font-medium text-gray-500 hover:text-gray-700"
-                >
-                  Knowledge Base
-                </Link>
-              </li>
-              <li>
-                <div className="flex items-center">
-                  <span className="text-gray-400 mx-2">/</span>
-                  <span className="text-sm font-medium text-gray-500 truncate">
-                    {article.title}
-                  </span>
-                </div>
-              </li>
-            </ol>
-          </nav>
+    <div className="max-w-5xl mx-auto p-4 space-y-6">
+      <Link
+        href={`/org/${params.orgSlug}/kb`}
+        className="text-gray-600 hover:text-gray-900 inline-flex items-center"
+      >
+        ← Knowledge Base
+      </Link>
+
+      <div className="bg-white shadow rounded-lg">
+        <div className="p-6 border-b border-gray-200">
+          <h1 className="text-3xl font-semibold text-gray-900">{article.title}</h1>
+          <div className="mt-2 text-sm text-gray-500 flex items-center gap-4">
+            <span>By {article.author_name}</span>
+            <span>•</span>
+            <span>Last updated: {new Date(article.updated_at).toLocaleDateString()}</span>
+          </div>
         </div>
 
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h1 className="text-3xl font-bold text-gray-900 mb-8">{article.title}</h1>
-            <div className="prose max-w-none">
-              <ReactMarkdown
-                components={{
-                  a: ({ href, children, ...props }) => {
-                    const isStorageUrl = href && (
-                      href.includes('storage.googleapis.com') || 
-                      href.includes('supabase.co/storage')
-                    );
-                    // Check if this is a storage URL and not an image
-                    if (isStorageUrl && !isImageFile(href)) {
-                      return (
-                        <span className="inline-block">
-                          <AttachmentDisplay href={href} className="my-4" />
-                        </span>
-                      );
-                    }
+        <div className="p-6">
+          <div className="prose max-w-none">
+            <ReactMarkdown
+              components={{
+                a: ({ href, children, ...props }) => {
+                  const isStorageUrl = href && (
+                    href.includes('storage.googleapis.com') || 
+                    href.includes('supabase.co/storage')
+                  );
+                  // Check if this is a storage URL and not an image
+                  if (isStorageUrl && !isImageFile(href)) {
                     return (
-                      <a href={href} {...props}>
-                        {children}
-                      </a>
+                      <span className="inline-block">
+                        <AttachmentDisplay href={href} className="my-4" />
+                      </span>
                     );
-                  },
-                  // Handle images normally
-                  img: ({ src, alt }) => {
-                    if (!src) return null;
-                    return (
-                      <img 
-                        src={src} 
-                        alt={alt} 
-                        className="rounded-lg max-h-[500px] object-contain"
-                      />
-                    );
-                  },
-                  // Ensure paragraphs can contain blocks
-                  p: ({ ...props }) => (
-                    <div className="mb-4" {...props} />
-                  )
-                }}
-              >
-                {article.content}
-              </ReactMarkdown>
-            </div>
-            <div className="mt-8 text-sm text-gray-500">
-              <div>Last updated: {new Date(article.updated_at).toLocaleString()}</div>
-              <div>Author: {article.author_name}</div>
-            </div>
+                  }
+                  return (
+                    <a href={href} {...props}>
+                      {children}
+                    </a>
+                  );
+                },
+                // Handle images normally
+                img: ({ src, alt }) => {
+                  if (!src) return null;
+                  return (
+                    <img 
+                      src={src} 
+                      alt={alt} 
+                      className="rounded-lg max-h-[500px] object-contain"
+                    />
+                  );
+                },
+                // Ensure paragraphs can contain blocks
+                p: ({ ...props }) => (
+                  <div className="mb-4" {...props} />
+                )
+              }}
+            >
+              {article.content}
+            </ReactMarkdown>
           </div>
         </div>
       </div>

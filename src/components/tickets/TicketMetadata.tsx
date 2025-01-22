@@ -1,29 +1,28 @@
 'use client';
 
 import { Ticket } from '@/types/tickets';
-import { formatTicketDate } from '@/utils/tickets/ticketUtils';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
 import TagBadge from './TagBadge';
 
 interface TicketMetadataProps {
-  createdAt: string;
   status: Ticket['status'];
   priority: Ticket['priority'];
   tag?: string | null;
   showStatusControl?: boolean;
   showPriorityControl?: boolean;
+  showPriorityBadge?: boolean;
   onStatusChange?: (newStatus: Ticket['status']) => void;
   onPriorityChange?: (newPriority: Ticket['priority']) => void;
 }
 
 export default function TicketMetadata({
-  createdAt,
   status,
   priority,
   tag,
   showStatusControl = false,
   showPriorityControl = false,
+  showPriorityBadge = true,
   onStatusChange,
   onPriorityChange
 }: TicketMetadataProps) {
@@ -31,11 +30,8 @@ export default function TicketMetadata({
     <div className="flex flex-wrap items-center gap-4">
       <div className="flex items-center space-x-4">
         <StatusBadge status={status} />
-        <PriorityBadge priority={priority} />
+        {showPriorityBadge && <PriorityBadge priority={priority} />}
         {tag && <TagBadge tag={tag} />}
-        <span className="text-sm text-gray-500">
-          Created on {formatTicketDate(createdAt)}
-        </span>
       </div>
       <div className="flex items-center gap-4">
         {showStatusControl && onStatusChange && (

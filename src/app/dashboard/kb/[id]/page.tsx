@@ -107,40 +107,33 @@ export default function ArticleDetailPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <nav className="flex mb-4" aria-label="Breadcrumb">
-            <ol className="flex items-center space-x-4">
-              <li>
-                <Link href="/dashboard/kb" className="text-sm font-medium text-gray-500 hover:text-gray-700">
-                  Knowledge Base
-                </Link>
-              </li>
-              <li>
-                <div className="flex items-center">
-                  <span className="text-gray-400 mx-2">/</span>
-                  <span className="text-sm font-medium text-gray-500 truncate">
-                    {article.title}
-                  </span>
-                </div>
-              </li>
-            </ol>
-          </nav>
-        </div>
-        <div>
-          <Link
-            href={`/dashboard/kb/${article.id}/edit`}
-            className="ml-3 inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Edit Article
-          </Link>
-        </div>
+    <div className="max-w-5xl mx-auto p-4 space-y-6">
+      <div className="flex items-center justify-between">
+        <Link
+          href="/dashboard/kb"
+          className="text-gray-600 hover:text-gray-900 inline-flex items-center"
+        >
+          ← Knowledge Base
+        </Link>
+        <Link
+          href={`/dashboard/kb/${article.id}/edit`}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+        >
+          Edit Article
+        </Link>
       </div>
 
       <div className="bg-white shadow rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8">{article.title}</h1>
+        <div className="p-6 border-b border-gray-200">
+          <h1 className="text-3xl font-semibold text-gray-900">{article.title}</h1>
+          <div className="mt-2 text-sm text-gray-500 flex items-center gap-4">
+            <span>By {article.author_name}</span>
+            <span>•</span>
+            <span>Last updated: {new Date(article.updated_at).toLocaleDateString()}</span>
+          </div>
+        </div>
+
+        <div className="p-6">
           <div className="prose max-w-none">
             <ReactMarkdown
               components={{
@@ -238,11 +231,6 @@ export default function ArticleDetailPage() {
               </div>
             </div>
           )}
-          
-          <div className="mt-8 text-sm text-gray-500">
-            <div>Last updated: {new Date(article.updated_at).toLocaleString()}</div>
-            <div>Author: {article.author_name}</div>
-          </div>
         </div>
       </div>
     </div>

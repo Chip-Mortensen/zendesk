@@ -138,16 +138,17 @@ export default function TicketsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-gray-900">Support Tickets</h1>
-      </div>
-
-      {tickets.length === 0 ? (
-        <div className="text-center py-12 bg-white shadow rounded-lg">
-          <p className="text-gray-500">No tickets found</p>
+      <div className="bg-white shadow rounded-lg">
+        <div className="p-6 border-b border-gray-200">
+          <h1 className="text-2xl font-bold">Support Tickets</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            View and manage all customer support tickets.
+          </p>
         </div>
-      ) : (
-        <div className="bg-white shadow rounded-lg">
+
+        {tickets.length === 0 ? (
+          <div className="p-6 text-gray-500">No tickets found</div>
+        ) : (
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -212,8 +213,8 @@ export default function TicketsPage() {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 } 
