@@ -1,21 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
 import CreateTicketModal from '@/components/tickets/CreateTicketModal';
 import PriorityBadge from '@/components/tickets/PriorityBadge';
+import SortableHeader from '@/components/table/SortableHeader';
+import { sortTickets, SortableTicket } from '@/utils/sorting';
 
-interface Ticket {
-  id: string;
-  title: string;
-  description: string;
-  status: 'open' | 'in_progress' | 'closed';
-  priority: 'low' | 'medium' | 'high';
-  created_at: string;
-  organization_id: string;
-}
+type Ticket = Omit<SortableTicket, 'tag'>;
 
 export default function CustomerTicketsPage() {
   const params = useParams();
@@ -25,6 +18,10 @@ export default function CustomerTicketsPage() {
   const [orgSlug, setOrgSlug] = useState<string>('');
   const [organizationId, setOrganizationId] = useState<string>('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{ field: string; direction: 'asc' | 'desc' }>({
+    field: 'created_at',
+    direction: 'desc'
+  });
 
   // Set orgSlug once when component mounts
   useEffect(() => {
@@ -122,6 +119,17 @@ export default function CustomerTicketsPage() {
     };
   }, [organizationId]);
 
+  const handleSort = (field: string) => {
+    setSortConfig(current => ({
+      field,
+      direction: current.field === field && current.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const sortedTickets = useMemo(() => {
+    return sortTickets(tickets, sortConfig.field, sortConfig.direction);
+  }, [tickets, sortConfig]);
+
   const getStatusColor = (status: Ticket['status']) => {
     switch (status) {
       case 'open':
@@ -160,28 +168,41 @@ export default function CustomerTicketsPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Title
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Priority
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created
-                </th>
-                <th scope="col" className="relative px-6 py-3">
-                  <span className="sr-only">View</span>
-                </th>
+                <SortableHeader
+                  label="Title"
+                  field="title"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Status"
+                  field="status"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Priority"
+                  field="priority"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Created"
+                  field="created_at"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {tickets.map((ticket) => (
-                <tr key={ticket.id} className="hover:bg-gray-50">
+              {sortedTickets.map((ticket) => (
+                <tr 
+                  key={ticket.id} 
+                  className="transition-colors duration-150 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => router.push(`/org/${orgSlug}/tickets/${ticket.id}`)}
+                >
                   <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900">{ticket.title}</div>
+                    <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600">{ticket.title}</div>
                     <div className="text-sm text-gray-500">{ticket.description.substring(0, 100)}...</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -194,14 +215,6 @@ export default function CustomerTicketsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(ticket.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <Link
-                      href={`/org/${orgSlug}/tickets/${ticket.id}`}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      View details
-                    </Link>
                   </td>
                 </tr>
               ))}
