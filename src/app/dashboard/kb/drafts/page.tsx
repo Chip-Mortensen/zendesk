@@ -70,6 +70,13 @@ export default function DraftArticlesPage() {
 
   return (
     <div className="space-y-6 p-4">
+      <button
+        onClick={() => router.push('/dashboard/kb')}
+        className="text-gray-600 hover:text-gray-900 mb-2 inline-flex items-center"
+      >
+        ← Back to Knowledge Base
+      </button>
+
       <div className="bg-white shadow rounded-lg">
         <div className="p-6 border-b border-gray-200">
           <div className="flex justify-between items-center">
