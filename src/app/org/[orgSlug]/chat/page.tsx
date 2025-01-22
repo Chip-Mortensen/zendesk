@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import { Conversation } from '@/types/chat';
@@ -15,42 +15,7 @@ export default function CustomerChatPage() {
   const [subject, setSubject] = useState('');
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    loadConversations();
-    return () => {
-      supabase.channel('conversations').unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    async function setupSubscription() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const channel = supabase
-          .channel('conversations')
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'conversations',
-              filter: `created_by=eq.${user.id}`
-            },
-            () => {
-              loadConversations();
-            }
-          )
-          .subscribe();
-
-        return () => {
-          channel.unsubscribe();
-        };
-      }
-    }
-    setupSubscription();
-  }, []);
-
-  async function loadConversations() {
+  const loadConversations = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -73,9 +38,9 @@ export default function CustomerChatPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [params.orgSlug]);
 
-  async function handleCreateConversation(e: React.FormEvent) {
+  const handleCreateConversation = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() || creating) return;
 
@@ -112,11 +77,46 @@ export default function CustomerChatPage() {
     } finally {
       setCreating(false);
     }
-  }
+  }, [creating, subject, params.orgSlug, router]);
 
-  function handleConversationClick(conversationId: string) {
+  const handleConversationClick = useCallback((conversationId: string) => {
     router.push(`/org/${params.orgSlug}/chat/${conversationId}`);
-  }
+  }, [router, params.orgSlug]);
+
+  useEffect(() => {
+    loadConversations();
+    return () => {
+      supabase.channel('conversations').unsubscribe();
+    };
+  }, [loadConversations]);
+
+  useEffect(() => {
+    async function setupSubscription() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const channel = supabase
+          .channel('conversations')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'conversations',
+              filter: `created_by=eq.${user.id}`
+            },
+            () => {
+              loadConversations();
+            }
+          )
+          .subscribe();
+
+        return () => {
+          channel.unsubscribe();
+        };
+      }
+    }
+    setupSubscription();
+  }, [loadConversations]);
 
   if (loading) {
     return <div className="p-6">Loading conversations...</div>;
@@ -124,10 +124,15 @@ export default function CustomerChatPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-4">Chat Support</h1>
-        
-        <form onSubmit={handleCreateConversation} className="bg-white shadow-lg rounded-xl p-6 mb-6">
+      <div className="bg-white shadow rounded-lg">
+        <div className="p-6 border-b border-gray-200">
+          <h1 className="text-2xl font-bold">Chat Support</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Our support team typically responds within a few hours during business hours.
+          </p>
+        </div>
+
+        <div className="p-6">
           <div className="space-y-4">
             <div className="flex items-center space-x-2 text-blue-600">
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -151,6 +156,7 @@ export default function CustomerChatPage() {
                   type="submit"
                   disabled={creating || !subject.trim()}
                   className="inline-flex items-center justify-center rounded-lg p-2 text-blue-600 hover:text-blue-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleCreateConversation}
                 >
                   {creating ? (
                     <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
@@ -165,42 +171,40 @@ export default function CustomerChatPage() {
                 </button>
               </div>
             </div>
-
-            <p className="text-sm text-gray-500">
-              Our support team typically responds within a few hours during business hours.
-            </p>
           </div>
-        </form>
+        </div>
 
-        <div className="bg-white shadow rounded-lg divide-y">
+        <div className="border-t border-gray-200">
           {conversations.length === 0 ? (
-            <p className="p-4 text-gray-500">No conversations yet. Start one above!</p>
+            <p className="p-6 text-gray-500">No conversations yet. Start one above!</p>
           ) : (
-            conversations.map((conversation) => (
-              <div
-                key={conversation.id}
-                className="p-4 hover:bg-gray-50 cursor-pointer"
-                onClick={() => handleConversationClick(conversation.id)}
-              >
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">{conversation.subject}</h3>
-                  <span className="px-2 py-1 text-xs font-medium rounded-full capitalize" 
-                    style={{
-                      backgroundColor: conversation.status === 'open' ? '#E5F6FD' : 
-                                    conversation.status === 'in_progress' ? '#FDF6B2' : 
-                                    '#F3F4F6',
-                      color: conversation.status === 'open' ? '#0284C7' : 
-                             conversation.status === 'in_progress' ? '#92400E' : 
-                             '#374151'
-                    }}>
-                    {formatStatus(conversation.status)}
-                  </span>
+            <div className="divide-y divide-gray-200">
+              {conversations.map((conversation) => (
+                <div
+                  key={conversation.id}
+                  className="p-6 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => handleConversationClick(conversation.id)}
+                >
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">{conversation.subject}</h3>
+                    <span className="px-2 py-1 text-xs font-medium rounded-full capitalize" 
+                      style={{
+                        backgroundColor: conversation.status === 'open' ? '#E5F6FD' : 
+                                      conversation.status === 'in_progress' ? '#FDF6B2' : 
+                                      '#F3F4F6',
+                        color: conversation.status === 'open' ? '#0284C7' : 
+                               conversation.status === 'in_progress' ? '#92400E' : 
+                               '#374151'
+                      }}>
+                      {formatStatus(conversation.status)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Started {new Date(conversation.created_at).toLocaleDateString()}
+                  </p>
                 </div>
-                <p className="mt-1 text-sm text-gray-500">
-                  Started {new Date(conversation.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       </div>

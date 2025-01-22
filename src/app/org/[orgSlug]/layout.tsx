@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { usePathname, useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 
@@ -26,7 +26,134 @@ export default function CustomerPortalLayout({
   const [orgSlug, setOrgSlug] = useState<string>('');
   const [pendingSlugUpdate, setPendingSlugUpdate] = useState<string | null>(null);
 
-  // Set orgSlug once when component mounts
+  const getUserData = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('No session found, redirecting to auth');
+        router.push('/auth?type=customer');
+        return;
+      }
+
+      console.log('Fetching org member data for:', {
+        userId: session.user.id,
+        orgSlug
+      });
+
+      // First get the organization ID from the slug
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .select('id, name, slug')
+        .eq('slug', orgSlug)
+        .single();
+
+      if (orgError || !orgData) {
+        console.error('Organization not found:', orgError);
+        router.push('/auth?type=customer');
+        return;
+      }
+
+      // Then get the membership with this org
+      const { data: memberData, error: memberError } = await supabase
+        .from('org_members')
+        .select('user_id, organization_id, role')
+        .eq('user_id', session.user.id)
+        .eq('organization_id', orgData.id)
+        .single();
+
+      console.log('Member data response:', { memberData, memberError });
+
+      if (memberError) {
+        console.error('Error fetching user data:', memberError);
+        router.push('/auth?type=customer');
+        return;
+      }
+
+      // Check if user is a customer - admins and employees should go to dashboard
+      if (!memberData || (memberData.role !== 'customer')) {
+        console.log('Redirecting admin/employee to dashboard');
+        router.push('/dashboard');
+        return;
+      }
+
+      setUserData({
+        name: session.user.user_metadata.name || 'Unknown User',
+        email: session.user.email || '',
+        organization: {
+          name: orgData.name,
+          slug: orgData.slug,
+        },
+      });
+
+      // Set up real-time subscription for organization changes
+      const channel = supabase.channel(`org-changes-${orgData.id}`);
+      channel
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'organizations',
+            filter: `id=eq.${orgData.id}`,
+          },
+          (payload) => {
+            if (payload.eventType === 'UPDATE') {
+              console.log('Organization updated:', payload);
+              // First verify the new organization exists and is accessible
+              supabase
+                .from('organizations')
+                .select('id, name, slug')
+                .eq('slug', payload.new.slug)
+                .single()
+                .then(({ data: newOrgData, error: newOrgError }) => {
+                  if (!newOrgError && newOrgData) {
+                    // Set the pending slug update
+                    if (payload.new.slug !== userData?.organization.slug) {
+                      setPendingSlugUpdate(payload.new.slug);
+                    }
+                    setUserData((prev) => ({
+                      ...prev!,
+                      organization: {
+                        ...prev!.organization,
+                        name: payload.new.name,
+                        slug: payload.new.slug,
+                      },
+                    }));
+                  } else {
+                    console.error('Could not verify new organization slug:', newOrgError);
+                    // Keep the old slug but update the name
+                    setUserData((prev) => ({
+                      ...prev!,
+                      organization: {
+                        ...prev!.organization,
+                        name: payload.new.name,
+                      },
+                    }));
+                  }
+                });
+            }
+          }
+        )
+        .subscribe();
+
+      // Clean up subscription
+      return () => {
+        channel.unsubscribe();
+      };
+
+    } catch (error) {
+      console.error('Error in getUserData:', error);
+      router.push('/auth?type=customer');
+    } finally {
+      setLoading(false);
+    }
+  }, [router, orgSlug, userData?.organization.slug]);
+
+  const handleSignOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    router.push('/auth?type=customer');
+  }, [router]);
+
   useEffect(() => {
     const slug = params?.orgSlug;
     if (typeof slug === 'string') {
@@ -34,7 +161,6 @@ export default function CustomerPortalLayout({
     }
   }, [params?.orgSlug]);
 
-  // Handle URL updates in a separate effect
   useEffect(() => {
     if (pendingSlugUpdate && userData?.organization.slug && pendingSlugUpdate !== userData.organization.slug) {
       const newPath = pathname.replace(`/org/${userData.organization.slug}`, `/org/${pendingSlugUpdate}`);
@@ -45,132 +171,8 @@ export default function CustomerPortalLayout({
 
   useEffect(() => {
     if (!orgSlug) return;
-
-    async function getUserData() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          console.log('No session found, redirecting to auth');
-          router.push('/auth?type=customer');
-          return;
-        }
-
-        console.log('Fetching org member data for:', {
-          userId: session.user.id,
-          orgSlug
-        });
-
-        // First get the organization ID from the slug
-        const { data: orgData, error: orgError } = await supabase
-          .from('organizations')
-          .select('id, name, slug')
-          .eq('slug', orgSlug)
-          .single();
-
-        if (orgError || !orgData) {
-          console.error('Organization not found:', orgError);
-          router.push('/auth?type=customer');
-          return;
-        }
-
-        // Then get the membership with this org
-        const { data: memberData, error: memberError } = await supabase
-          .from('org_members')
-          .select('user_id, organization_id, role')
-          .eq('user_id', session.user.id)
-          .eq('organization_id', orgData.id)
-          .single();
-
-        console.log('Member data response:', { memberData, memberError });
-
-        if (memberError) {
-          console.error('Error fetching user data:', memberError);
-          router.push('/auth?type=customer');
-          return;
-        }
-
-        // Check if user is a customer - admins and employees should go to dashboard
-        if (!memberData || (memberData.role !== 'customer')) {
-          console.log('Redirecting admin/employee to dashboard');
-          router.push('/dashboard');
-          return;
-        }
-
-        setUserData({
-          name: session.user.user_metadata.name || 'Unknown User',
-          email: session.user.email || '',
-          organization: {
-            name: orgData.name,
-            slug: orgData.slug,
-          },
-        });
-
-        // Set up real-time subscription for organization changes
-        const channel = supabase.channel(`org-changes-${orgData.id}`);
-        channel
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'organizations',
-              filter: `id=eq.${orgData.id}`,
-            },
-            (payload) => {
-              if (payload.eventType === 'UPDATE') {
-                console.log('Organization updated:', payload);
-                // First verify the new organization exists and is accessible
-                supabase
-                  .from('organizations')
-                  .select('id, name, slug')
-                  .eq('slug', payload.new.slug)
-                  .single()
-                  .then(({ data: newOrgData, error: newOrgError }) => {
-                    if (!newOrgError && newOrgData) {
-                      // Set the pending slug update
-                      if (payload.new.slug !== userData?.organization.slug) {
-                        setPendingSlugUpdate(payload.new.slug);
-                      }
-                      setUserData((prev) => ({
-                        ...prev!,
-                        organization: {
-                          ...prev!.organization,
-                          name: payload.new.name,
-                          slug: payload.new.slug,
-                        },
-                      }));
-                    } else {
-                      console.error('Could not verify new organization slug:', newOrgError);
-                      // Keep the old slug but update the name
-                      setUserData((prev) => ({
-                        ...prev!,
-                        organization: {
-                          ...prev!.organization,
-                          name: payload.new.name,
-                        },
-                      }));
-                    }
-                  });
-              }
-            }
-          )
-          .subscribe();
-
-        // Clean up subscription
-        return () => {
-          channel.unsubscribe();
-        };
-
-      } catch (error) {
-        console.error('Error in getUserData:', error);
-        router.push('/auth?type=customer');
-      } finally {
-        setLoading(false);
-      }
-    }
-
     getUserData();
-  }, [router, orgSlug]);
+  }, [orgSlug, getUserData]);
 
   if (loading || !orgSlug) {
     return (
@@ -185,11 +187,6 @@ export default function CustomerPortalLayout({
     { name: 'Knowledge Base', href: `/org/${userData?.organization.slug}/kb` },
     { name: 'Chat', href: `/org/${userData?.organization.slug}/chat` },
   ];
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push('/auth?type=customer');
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">

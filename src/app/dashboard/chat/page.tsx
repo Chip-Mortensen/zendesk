@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import { Conversation } from '@/types/chat';
@@ -13,42 +13,7 @@ export default function AdminChatPage() {
   const [loading, setLoading] = useState(true);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-    return () => {
-      // Cleanup subscription on unmount
-      if (organizationId) {
-        supabase.channel('conversations').unsubscribe();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (organizationId) {
-      // Subscribe to changes
-      const channel = supabase
-        .channel('conversations')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'conversations',
-            filter: `organization_id=eq.${organizationId}`
-          },
-          () => {
-            loadData();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        channel.unsubscribe();
-      };
-    }
-  }, [organizationId]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -81,11 +46,46 @@ export default function AdminChatPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [router]);
 
-  function handleConversationClick(conversationId: string) {
+  const handleConversationClick = useCallback((conversationId: string) => {
     router.push(`/dashboard/chat/${conversationId}`);
-  }
+  }, [router]);
+
+  useEffect(() => {
+    loadData();
+    return () => {
+      // Cleanup subscription on unmount
+      if (organizationId) {
+        supabase.channel('conversations').unsubscribe();
+      }
+    };
+  }, [loadData, organizationId]);
+
+  useEffect(() => {
+    if (organizationId) {
+      // Subscribe to changes
+      const channel = supabase
+        .channel('conversations')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'conversations',
+            filter: `organization_id=eq.${organizationId}`
+          },
+          () => {
+            loadData();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        channel.unsubscribe();
+      };
+    }
+  }, [organizationId, loadData]);
 
   if (loading) {
     return <div className="p-6">Loading conversations...</div>;
@@ -93,17 +93,22 @@ export default function AdminChatPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-4">Chat Support</h1>
+      <div className="bg-white shadow rounded-lg">
+        <div className="p-6 border-b border-gray-200">
+          <h1 className="text-2xl font-bold">Chat Support</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            View and manage all customer support conversations.
+          </p>
+        </div>
 
-        <div className="bg-white shadow rounded-lg divide-y">
+        <div className="divide-y divide-gray-200">
           {conversations.length === 0 ? (
-            <p className="p-4 text-gray-500">No conversations yet.</p>
+            <p className="p-6 text-gray-500">No conversations yet.</p>
           ) : (
             conversations.map((conversation) => (
               <div
                 key={conversation.id}
-                className="p-4 hover:bg-gray-50 cursor-pointer"
+                className="p-6 hover:bg-gray-50 cursor-pointer"
                 onClick={() => handleConversationClick(conversation.id)}
               >
                 <div className="flex justify-between items-center">

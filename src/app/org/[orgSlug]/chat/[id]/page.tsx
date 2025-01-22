@@ -126,38 +126,39 @@ export default function ConversationDetailPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <button
-          onClick={() => router.push(`/org/${params.orgSlug}/chat`)}
-          className="mb-4 inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
-        >
-          <svg className="mr-2 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
-          </svg>
-          Back to Conversations
-        </button>
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold">{conversation.subject}</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Started {new Date(conversation.created_at).toLocaleDateString()}
-            </p>
-          </div>
-          <span className="px-2 py-1 text-xs font-medium rounded-full capitalize" 
-            style={{
-              backgroundColor: conversation.status === 'open' ? '#E5F6FD' : 
-                            conversation.status === 'in_progress' ? '#FDF6B2' : 
-                            '#F3F4F6',
-              color: conversation.status === 'open' ? '#0284C7' : 
-                     conversation.status === 'in_progress' ? '#92400E' : 
-                     '#374151'
-            }}>
-            {formatStatus(conversation.status)}
-          </span>
-        </div>
-      </div>
+      <button
+        onClick={() => router.push(`/org/${params.orgSlug}/chat`)}
+        className="mb-4 inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
+      >
+        <svg className="mr-2 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
+        </svg>
+        Back to Conversations
+      </button>
 
       <div className="bg-white shadow rounded-lg">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">{conversation.subject}</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Started {new Date(conversation.created_at).toLocaleDateString()}
+              </p>
+            </div>
+            <span className="px-3 py-1.5 text-sm font-medium rounded-full capitalize flex items-center" 
+              style={{
+                backgroundColor: conversation.status === 'open' ? '#E5F6FD' : 
+                              conversation.status === 'in_progress' ? '#FDF6B2' : 
+                              '#F3F4F6',
+                color: conversation.status === 'open' ? '#0284C7' : 
+                       conversation.status === 'in_progress' ? '#92400E' : 
+                       '#374151'
+              }}>
+              {formatStatus(conversation.status)}
+            </span>
+          </div>
+        </div>
+
         <ConversationTimeline
           conversation={conversation}
           events={events}

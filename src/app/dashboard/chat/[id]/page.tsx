@@ -151,65 +151,62 @@ export default function AdminConversationDetailPage() {
   }
 
   return (
-    <div className="p-6">
-      {loading ? (
-        <div>Loading conversation...</div>
-      ) : conversation ? (
-        <div>
-          <button
-            onClick={() => router.push('/dashboard/chat')}
-            className="mb-4 inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
-          >
-            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back to Conversations
-          </button>
+    <div>
+      <button
+        onClick={() => router.push('/dashboard/chat')}
+        className="mb-4 inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
+      >
+        <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Back to Conversations
+      </button>
 
-          <div className="bg-white shadow rounded-lg">
-            <div className="p-6 border-b">
-              <div className="flex justify-between items-start">
-                <h1 className="text-2xl font-bold">{conversation.subject}</h1>
-                <div className="flex items-center space-x-4">
-                  <select
-                    value={conversation.status}
-                    onChange={handleStatusChange}
-                    disabled={updating}
-                    className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  >
-                    <option value="open">Open</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="resolved">Resolved</option>
-                  </select>
-
-                  <select
-                    value={conversation.assigned_to || ''}
-                    onChange={handleAssigneeChange}
-                    disabled={updating}
-                    className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  >
-                    <option value="">Unassigned</option>
-                    {assignees.map((assignee) => (
-                      <option key={assignee.id} value={assignee.id}>
-                        {assignee.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+      <div className="bg-white shadow rounded-lg">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">{conversation.subject}</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Started {new Date(conversation.created_at).toLocaleDateString()}
+              </p>
             </div>
+            <div className="flex items-center space-x-4">
+              <select
+                value={conversation.status}
+                onChange={handleStatusChange}
+                disabled={updating}
+                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              >
+                <option value="open">Open</option>
+                <option value="in_progress">In Progress</option>
+                <option value="resolved">Resolved</option>
+              </select>
 
-            <ConversationTimeline
-              conversation={conversation}
-              events={events}
-              currentUserId={currentUserId}
-              onSendMessage={handleSendMessage}
-            />
+              <select
+                value={conversation.assigned_to || ''}
+                onChange={handleAssigneeChange}
+                disabled={updating}
+                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              >
+                <option value="">Unassigned</option>
+                {assignees.map((assignee) => (
+                  <option key={assignee.id} value={assignee.id}>
+                    {assignee.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
-      ) : (
-        <div>Conversation not found</div>
-      )}
+
+        <ConversationTimeline
+          conversation={conversation}
+          events={events}
+          currentUserId={currentUserId}
+          onSendMessage={handleSendMessage}
+        />
+      </div>
     </div>
   );
 } 
