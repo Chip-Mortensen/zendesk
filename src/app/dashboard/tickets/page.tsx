@@ -10,12 +10,17 @@ import { sortTickets } from '@/utils/sorting';
 import TicketFilters, { TicketFilters as TicketFiltersType } from '@/components/tickets/TicketFilters';
 import { isToday, isThisWeek } from 'date-fns';
 import { Ticket } from '@/types/tickets';
+import { userQueries } from '@/utils/sql/userQueries';
+import { UserSettings } from '@/types/settings';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export default function TicketsPage() {
   const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userSettings, setUserSettings] = useState<UserSettings>({});
   const [sortConfig, setSortConfig] = useState<{ field: string; direction: 'asc' | 'desc' }>({
     field: 'created_at',
     direction: 'desc'
@@ -37,6 +42,20 @@ export default function TicketsPage() {
           console.error('No session found');
           router.push('/auth?type=admin');
           return;
+        }
+
+        console.log('Current user ID:', session.user.id);
+        setUserId(session.user.id);
+
+        // Load user settings
+        try {
+          const settings = await userQueries.getUserSettings(session.user.id);
+          if (settings?.ticket_filters) {
+            setFilters(settings.ticket_filters);
+            setUserSettings(settings);
+          }
+        } catch (error) {
+          console.error('Error loading user settings:', error);
         }
 
         // Get user's organization
@@ -86,12 +105,58 @@ export default function TicketsPage() {
     loadUserAndTickets();
   }, [router]);
 
-  // Separate effect for realtime subscription
+  // Subscribe to user settings changes
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase.channel(`user-settings-${userId}`);
+    
+    const subscription = channel
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${userId}`,
+        },
+        async (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            const newSettings = (payload.new as { settings: UserSettings }).settings || {
+              ticket_filters: {
+                status: [],
+                priority: [],
+                assignee: [],
+                customer: [],
+                tag: [],
+                created: []
+              }
+            };
+            setUserSettings(newSettings);
+            if (newSettings.ticket_filters) {
+              setFilters(newSettings.ticket_filters);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [userId]);
+
+  // Separate effect for tickets realtime subscription
   useEffect(() => {
     if (!organizationId) return;
 
     const channel = supabase.channel(`admin-tickets-${organizationId}`);
     
+    type TicketPayload = RealtimePostgresChangesPayload<{
+      id: string;
+      [key: string]: unknown;
+    }>;
+
     const subscription = channel
       .on(
         'postgres_changes',
@@ -101,8 +166,7 @@ export default function TicketsPage() {
           table: 'tickets',
           filter: `organization_id=eq.${organizationId}`,
         },
-        (payload) => {
-          console.log('Realtime update:', payload);
+        (payload: TicketPayload) => {
           if (payload.eventType === 'INSERT') {
             setTickets(currentTickets => [payload.new as Ticket, ...currentTickets]);
           } else if (payload.eventType === 'DELETE') {
@@ -112,7 +176,7 @@ export default function TicketsPage() {
           } else if (payload.eventType === 'UPDATE') {
             setTickets(currentTickets =>
               currentTickets.map(ticket =>
-                ticket.id === payload.new.id ? { ...ticket, ...payload.new } : ticket
+                ticket.id === payload.new.id ? { ...ticket, ...payload.new as Ticket } : ticket
               )
             );
           }
@@ -130,6 +194,28 @@ export default function TicketsPage() {
       field,
       direction: current.field === field && current.direction === 'asc' ? 'desc' : 'asc'
     }));
+  };
+
+  const handleFiltersChange = async (newFilters: TicketFiltersType) => {
+    if (!userId) {
+      console.error('No user ID available when trying to save filters');
+      return;
+    }
+    
+    setFilters(newFilters);
+    
+    try {
+      // Merge with existing settings
+      const newSettings: UserSettings = {
+        ...userSettings,
+        ticket_filters: newFilters
+      };
+      
+      await userQueries.updateUserSettings(userId, newSettings);
+      setUserSettings(newSettings);
+    } catch (error) {
+      console.error('Error saving filters:', error);
+    }
   };
 
   const filteredTickets = useMemo(() => {
@@ -186,7 +272,7 @@ export default function TicketsPage() {
           <TicketFilters
             tickets={tickets}
             filters={filters}
-            onFiltersChange={setFilters}
+            onFiltersChange={handleFiltersChange}
           />
         </div>
 

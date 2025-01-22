@@ -31,16 +31,9 @@ export default function DashboardLayout({
 
     async function loadUserData() {
       try {
-        console.log('Dashboard - Checking session');
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        console.log('Dashboard - Session check result:', { 
-          hasSession: !!session,
-          sessionError 
-        });
+        const { data: { session } } = await supabase.auth.getSession();
 
         if (!session && mounted) {
-          console.log('Dashboard - No session, redirecting to auth');
           router.push('/auth?type=admin');
           return;
         }
@@ -48,18 +41,12 @@ export default function DashboardLayout({
         if (!session) return;
 
         // Get user's organization membership
-        console.log('Dashboard - Fetching membership for user:', session.user.id);
         const { data: memberData, error: memberError } = await supabase
           .from('org_members')
           .select('organization_id, role')
           .eq('user_id', session.user.id)
           .in('role', ['admin', 'employee'])
           .single();
-
-        console.log('Dashboard - Membership check result:', {
-          memberData,
-          memberError
-        });
 
         if ((memberError || !memberData) && mounted) {
           console.error('Dashboard - Error fetching member data:', memberError);
@@ -83,7 +70,6 @@ export default function DashboardLayout({
         }
 
         if (mounted) {
-          console.log('Dashboard - Setting user data with member data:', memberData);
           const userData = {
             name: session.user.user_metadata.name || 'Admin User',
             email: session.user.email || '',
@@ -94,7 +80,6 @@ export default function DashboardLayout({
               slug: orgData.slug,
             },
           };
-          console.log('Dashboard - Final user data:', userData);
           setUserData(userData);
 
           // Set up real-time subscription for organization changes
@@ -144,8 +129,7 @@ export default function DashboardLayout({
     loadUserData();
 
     // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Dashboard - Auth state changed:', event, !!session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         router.push('/auth?type=admin');
       }
@@ -167,13 +151,11 @@ export default function DashboardLayout({
   ];
 
   const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      router.push('/auth?type=admin');
-    } catch (error) {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
       console.error('Error signing out:', error);
-      router.push('/auth?type=admin');
     }
+    router.push('/auth?type=admin');
   };
 
   if (isLoading) {
