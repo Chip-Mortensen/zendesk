@@ -58,7 +58,7 @@ export default function TicketDetailContent({
 
   async function handleDelete() {
     try {
-      await ticketQueries.deleteTicket(ticket.id);
+      await ticketQueries.deleteTicket(ticket.id, ticket.organization_id);
       router.push('/dashboard/tickets');
     } catch (error) {
       console.error('Error deleting ticket:', error);
@@ -66,59 +66,61 @@ export default function TicketDetailContent({
   }
 
   return (
-    <div className="space-y-6">
-      <button
-        onClick={() => router.push('/dashboard/tickets')}
-        className="text-gray-600 hover:text-gray-900 mb-4 inline-flex items-center"
-      >
-        ← Back to tickets
-      </button>
+    <>
+      <div className="space-y-6">
+        <button
+          onClick={() => router.push('/dashboard/tickets')}
+          className="text-gray-600 hover:text-gray-900 mb-4 inline-flex items-center"
+        >
+          ← Back to tickets
+        </button>
 
-      <div className="bg-white shadow rounded-lg">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-semibold text-gray-900">{ticket.title}</h1>
-            <div className="flex items-center space-x-4">
-              <TicketMetadata
-                status={ticket.status}
-                priority={ticket.priority}
-                tag={ticket.tag}
-                showStatusControl={false}
-                showPriorityControl={false}
-              />
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md"
-              >
-                Delete Ticket
-              </button>
+        <div className="bg-white shadow rounded-lg">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex justify-between items-center mb-4">
+              <h1 className="text-2xl font-semibold text-gray-900">{ticket.title}</h1>
+              <div className="flex items-center space-x-4">
+                <TicketMetadata
+                  status={ticket.status}
+                  priority={ticket.priority}
+                  tag={ticket.tag}
+                  showStatusControl={false}
+                  showPriorityControl={false}
+                />
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md"
+                >
+                  Delete Ticket
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="p-6 border-b border-gray-200">
-          <TicketActions
-            ticket={ticket}
-            onStatusChange={handleStatusChange}
-            onPriorityChange={handlePriorityChange}
-            onAssigneeChange={handleAssigneeChange}
-          />
-        </div>
-
-        <div className="p-6">
-          <div className="mb-2 text-sm text-gray-500">
-            Created on {new Date(ticket.created_at).toLocaleDateString()}
+          <div className="p-6 border-b border-gray-200">
+            <TicketActions
+              ticket={ticket}
+              onStatusChange={handleStatusChange}
+              onPriorityChange={handlePriorityChange}
+              onAssigneeChange={handleAssigneeChange}
+            />
           </div>
-          <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
-        </div>
-      </div>
 
-      <TicketTimeline
-        events={events}
-        ticketId={ticket.id}
-        isAdmin={true}
-        onEventsUpdate={onEventsUpdate}
-      />
+          <div className="p-6">
+            <div className="mb-2 text-sm text-gray-500">
+              Created on {new Date(ticket.created_at).toLocaleDateString()}
+            </div>
+            <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
+          </div>
+        </div>
+
+        <TicketTimeline
+          events={events}
+          ticketId={ticket.id}
+          isAdmin={true}
+          onEventsUpdate={onEventsUpdate}
+        />
+      </div>
 
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
@@ -144,6 +146,6 @@ export default function TicketDetailContent({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 } 

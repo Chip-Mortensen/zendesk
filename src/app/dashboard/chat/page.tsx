@@ -10,6 +10,7 @@ import { isToday, isThisWeek } from 'date-fns';
 import ConversationFilters, { ConversationFilters as ConversationFiltersType } from '@/components/chat/ConversationFilters';
 import { userQueries } from '@/utils/sql/userQueries';
 import { UserSettings } from '@/types/settings';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export default function AdminChatPage() {
   const router = useRouter();
@@ -134,19 +135,26 @@ export default function AdminChatPage() {
 
   useEffect(() => {
     if (organizationId) {
-      // Subscribe to changes
+      const channelName = `admin-conversations-${organizationId}`;
+
       const channel = supabase
-        .channel('conversations')
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
             event: '*',
             schema: 'public',
-            table: 'conversations',
-            filter: `organization_id=eq.${organizationId}`
+            table: 'conversations'
           },
-          () => {
-            loadData();
+          async (payload: RealtimePostgresChangesPayload<{
+            id: string;
+            [key: string]: unknown;
+          }>) => {
+            if (payload.eventType === 'DELETE') {
+              setConversations(current => current.filter(conv => conv.id !== payload.old.id));
+            } else {
+              await loadData();
+            }
           }
         )
         .subscribe();
@@ -155,7 +163,7 @@ export default function AdminChatPage() {
         channel.unsubscribe();
       };
     }
-  }, [organizationId, loadData]);
+  }, [organizationId, conversations, loadData]);
 
   if (loading) {
     return <div className="p-6">Loading conversations...</div>;

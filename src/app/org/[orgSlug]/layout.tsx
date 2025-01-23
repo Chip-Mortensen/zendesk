@@ -30,15 +30,9 @@ export default function CustomerPortalLayout({
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        console.log('No session found, redirecting to auth');
         router.push('/auth?type=customer');
         return;
       }
-
-      console.log('Fetching org member data for:', {
-        userId: session.user.id,
-        orgSlug
-      });
 
       // First get the organization ID from the slug
       const { data: orgData, error: orgError } = await supabase
@@ -61,8 +55,6 @@ export default function CustomerPortalLayout({
         .eq('organization_id', orgData.id)
         .single();
 
-      console.log('Member data response:', { memberData, memberError });
-
       if (memberError) {
         console.error('Error fetching user data:', memberError);
         router.push('/auth?type=customer');
@@ -71,7 +63,6 @@ export default function CustomerPortalLayout({
 
       // Check if user is a customer - admins and employees should go to dashboard
       if (!memberData || (memberData.role !== 'customer')) {
-        console.log('Redirecting admin/employee to dashboard');
         router.push('/dashboard');
         return;
       }
@@ -98,7 +89,6 @@ export default function CustomerPortalLayout({
           },
           (payload) => {
             if (payload.eventType === 'UPDATE') {
-              console.log('Organization updated:', payload);
               // First verify the new organization exists and is accessible
               supabase
                 .from('organizations')
@@ -136,7 +126,6 @@ export default function CustomerPortalLayout({
         )
         .subscribe();
 
-      // Clean up subscription
       return () => {
         channel.unsubscribe();
       };

@@ -6,6 +6,7 @@ import { supabase } from '@/utils/supabase';
 import { Conversation } from '@/types/chat';
 import { chatQueries } from '@/utils/sql/chatQueries';
 import { formatStatus } from '@/utils/dates';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export default function CustomerChatPage() {
   const params = useParams();
@@ -15,11 +16,15 @@ export default function CustomerChatPage() {
   const [subject, setSubject] = useState('');
   const [creating, setCreating] = useState(false);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   const loadConversations = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      setUserId(user.id);
 
       // Get organization ID from the slug
       const { data: orgData } = await supabase
@@ -32,7 +37,24 @@ export default function CustomerChatPage() {
 
       setOrganizationId(orgData.id);
 
-      const { data } = await chatQueries.getUserConversations(user.id, orgData.id);
+      // Get user's role in the organization
+      const { data: memberData } = await supabase
+        .from('org_members')
+        .select('role')
+        .eq('organization_id', orgData.id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (memberData) {
+        setUserRole(memberData.role);
+      }
+
+      // If user is admin or employee, get all org conversations
+      // Otherwise, get only their conversations
+      const { data } = memberData?.role === 'customer' 
+        ? await chatQueries.getUserConversations(user.id, orgData.id)
+        : await chatQueries.getOrgConversations(orgData.id);
+
       if (data) {
         setConversations(data);
       }
@@ -88,29 +110,29 @@ export default function CustomerChatPage() {
 
   useEffect(() => {
     loadConversations();
-    return () => {
-      supabase.channel('conversations').unsubscribe();
-    };
   }, [loadConversations]);
 
   useEffect(() => {
     if (organizationId) {
+      const channelName = `org-conversations-${organizationId}`;
+
       const channel = supabase
-        .channel('conversations')
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
             event: '*',
             schema: 'public',
-            table: 'conversations',
-            filter: `organization_id=eq.${organizationId}`
+            table: 'conversations'
           },
-          async (payload) => {
+          async (payload: RealtimePostgresChangesPayload<{
+            id: string;
+            [key: string]: unknown;
+          }>) => {
             if (payload.eventType === 'DELETE') {
               setConversations(current => current.filter(conv => conv.id !== payload.old.id));
             } else {
-              // For INSERT and UPDATE, reload the full list to ensure we only show conversations the user should see
-              loadConversations();
+              await loadConversations();
             }
           }
         )
@@ -120,7 +142,12 @@ export default function CustomerChatPage() {
         channel.unsubscribe();
       };
     }
-  }, [organizationId, loadConversations]);
+  }, [organizationId, userRole, conversations, loadConversations]);
+
+  // Only filter conversations for customers
+  const displayedConversations = userRole === 'customer' 
+    ? conversations.filter(conv => conv.created_by === userId)
+    : conversations;
 
   if (loading) {
     return <div className="p-6">Loading conversations...</div>;
@@ -181,10 +208,10 @@ export default function CustomerChatPage() {
         <div className="border-t border-gray-200">
           <div className="max-h-[calc(100vh-24rem)] overflow-auto">
             <div className="divide-y divide-gray-200">
-              {conversations.length === 0 ? (
+              {displayedConversations.length === 0 ? (
                 <p className="p-6 text-gray-500">No conversations yet. Start one above!</p>
               ) : (
-                conversations.map((conversation) => (
+                displayedConversations.map((conversation) => (
                   <div
                     key={conversation.id}
                     className="p-6 hover:bg-gray-50 cursor-pointer"

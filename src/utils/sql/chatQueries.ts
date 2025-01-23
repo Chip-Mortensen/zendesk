@@ -36,7 +36,12 @@ export const chatQueries = {
   async getUserConversations(userId: string, organizationId: string) {
     return await supabase
       .from('conversations')
-      .select('*')
+      .select(`
+        *,
+        assignee:users!conversations_assigned_to_fkey (
+          name
+        )
+      `)
       .eq('organization_id', organizationId)
       .eq('created_by', userId)
       .order('created_at', { ascending: false });
