@@ -314,6 +314,11 @@ export const eventQueries = {
       .order('created_at', { ascending: true });
 
     console.log('Events fetch result:', { data, error });
+    if (error) {
+      console.error('Error fetching events:', error);
+    } else if (data) {
+      console.log('Events data structure:', data[0]);
+    }
     return {
       data: data as TicketEventWithUser[] | null,
       error
@@ -322,7 +327,9 @@ export const eventQueries = {
 
   // Create a new event
   async createEvent(event: Omit<TicketEvent, 'id' | 'created_at'>) {
-    return await supabase
+    console.log('Creating new event:', event);
+    
+    const result = await supabase
       .from('ticket_events')
       .insert([event])
       .select(`
@@ -334,6 +341,14 @@ export const eventQueries = {
         )
       `)
       .single();
+
+    console.log('Event creation result:', result);
+    if (result.error) {
+      console.error('Error creating event:', result.error);
+    } else if (result.data) {
+      console.log('Created event data:', result.data);
+    }
+    return result;
   }
 };
 
@@ -341,6 +356,7 @@ export const eventQueries = {
 export const subscriptionHelpers = {
   // Subscribe to ticket changes
   subscribeToTicket(ticketId: string, callback: (payload: RealtimePostgresChangesPayload<Ticket>) => void) {
+    console.log('Setting up ticket subscription for:', ticketId);
     return supabase
       .channel(`ticket-${ticketId}`)
       .on(
@@ -351,14 +367,19 @@ export const subscriptionHelpers = {
           table: 'tickets',
           filter: `id=eq.${ticketId}`
         },
-        callback
+        (payload: RealtimePostgresChangesPayload<Ticket>) => {
+          console.log('Received ticket update:', payload);
+          callback(payload);
+        }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Ticket subscription status:', status);
+      });
   },
 
   // Subscribe to ticket events
   subscribeToEvents(ticketId: string, callback: (payload: RealtimePostgresChangesPayload<TicketEventWithUser>) => void) {
-    console.log('Setting up subscription for ticket:', ticketId);
+    console.log('Setting up events subscription for:', ticketId);
     return supabase
       .channel(`events-${ticketId}`)
       .on(
@@ -413,7 +434,7 @@ export const subscriptionHelpers = {
         }
       )
       .subscribe((status) => {
-        console.log('Subscription status:', status);
+        console.log('Events subscription status:', status);
       });
   }
 }; 

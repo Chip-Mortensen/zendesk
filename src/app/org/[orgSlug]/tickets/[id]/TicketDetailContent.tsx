@@ -12,7 +12,6 @@ import { supabase } from '@/utils/supabase';
 interface Props {
   ticket: Ticket;
   events: TicketEventWithUser[];
-  onEventsUpdate: (updater: (events: TicketEventWithUser[]) => TicketEventWithUser[]) => void;
 }
 
 export default function TicketDetailContent({
