@@ -17,8 +17,7 @@ interface Props {
 
 export default function TicketDetailContent({
   ticket,
-  events,
-  onEventsUpdate
+  events
 }: Props) {
   const router = useRouter();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -118,7 +117,6 @@ export default function TicketDetailContent({
           events={events}
           ticketId={ticket.id}
           isAdmin={true}
-          onEventsUpdate={onEventsUpdate}
           ticket={ticket}
         />
       </div>

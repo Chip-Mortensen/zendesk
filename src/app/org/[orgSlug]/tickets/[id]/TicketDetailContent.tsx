@@ -17,8 +17,7 @@ interface Props {
 
 export default function TicketDetailContent({
   ticket,
-  events,
-  onEventsUpdate
+  events
 }: Props) {
   const router = useRouter();
   const [userId, setUserId] = useState<string>('');
@@ -86,7 +85,6 @@ export default function TicketDetailContent({
         events={events}
         ticketId={ticket.id}
         isAdmin={false}
-        onEventsUpdate={onEventsUpdate}
         ticket={ticket}
       />
     </div>

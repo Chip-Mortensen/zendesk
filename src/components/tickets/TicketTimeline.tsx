@@ -11,7 +11,6 @@ interface TicketTimelineProps {
   events: TicketEventWithUser[];
   ticketId: string;
   isAdmin?: boolean;
-  onEventsUpdate?: (updater: (events: TicketEventWithUser[]) => TicketEventWithUser[]) => void;
   ticket: Ticket;
 }
 
@@ -19,7 +18,6 @@ export default function TicketTimeline({
   events,
   ticketId, 
   isAdmin = false, 
-  onEventsUpdate,
   ticket
 }: TicketTimelineProps) {
   const timelineEndRef = useRef<HTMLDivElement>(null);

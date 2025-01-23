@@ -14,15 +14,14 @@ import { userQueries } from '@/utils/sql/userQueries';
 import { UserSettings } from '@/types/settings';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import BulkActionsBar from '@/components/tickets/BulkActionsBar';
-import { StarIcon } from '@heroicons/react/24/outline';
-import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
+import { StarIcon } from '@heroicons/react/24/solid';
 
 function RatingDisplay({ rating }: { rating?: number }) {
   if (!rating) return null;
   
   return (
     <div className="flex items-center gap-1">
-      <StarIconSolid className="w-4 h-4 text-yellow-400" />
+      <StarIcon className="w-4 h-4 text-yellow-400" />
       <span className="text-sm text-gray-600">{rating}</span>
     </div>
   );
@@ -350,56 +349,64 @@ export default function TicketsPage() {
                 <SortableHeader
                   label="Title"
                   field="title"
-                  currentSort={sortConfig}
+                  sortField={sortConfig.field}
+                  sortDirection={sortConfig.field === "title" ? sortConfig.direction : null}
                   onSort={handleSort}
                   className="w-1/4"
                 />
                 <SortableHeader
                   label="Status"
                   field="status"
-                  currentSort={sortConfig}
+                  sortField={sortConfig.field}
+                  sortDirection={sortConfig.field === "status" ? sortConfig.direction : null}
                   onSort={handleSort}
                   className="w-24"
                 />
                 <SortableHeader
                   label="Priority"
                   field="priority"
-                  currentSort={sortConfig}
+                  sortField={sortConfig.field}
+                  sortDirection={sortConfig.field === "priority" ? sortConfig.direction : null}
                   onSort={handleSort}
                   className="w-24"
                 />
                 <SortableHeader
                   label="Assignee"
                   field="assignee"
-                  currentSort={sortConfig}
+                  sortField={sortConfig.field}
+                  sortDirection={sortConfig.field === "assignee" ? sortConfig.direction : null}
                   onSort={handleSort}
                   className="w-32"
                 />
                 <SortableHeader
                   label="Customer"
                   field="customer"
-                  currentSort={sortConfig}
+                  sortField={sortConfig.field}
+                  sortDirection={sortConfig.field === "customer" ? sortConfig.direction : null}
                   onSort={handleSort}
                   className="w-32"
                 />
                 <SortableHeader
                   label="Tag"
                   field="tag"
-                  currentSort={sortConfig}
+                  sortField={sortConfig.field}
+                  sortDirection={sortConfig.field === "tag" ? sortConfig.direction : null}
                   onSort={handleSort}
                   className="w-24"
                 />
                 <SortableHeader
                   label="Rating"
                   field="rating"
-                  currentSort={sortConfig}
+                  sortField={sortConfig.field}
+                  sortDirection={sortConfig.field === "rating" ? sortConfig.direction : null}
                   onSort={handleSort}
                   className="w-20"
                 />
                 <SortableHeader
                   label="Created"
                   field="created_at"
-                  currentSort={sortConfig}
+                  sortField={sortConfig.field}
+                  sortDirection={sortConfig.field === "created_at" ? sortConfig.direction : null}
                   onSort={handleSort}
                   className="w-28"
                 />

@@ -93,7 +93,7 @@ function AssignmentChangeContent({ event }: { event: TicketEventWithUser & { eve
 
 function CommentContent({ event }: { event: TicketEventWithUser & { event_type: 'comment' } }) {
   return (
-    <p className="text-gray-700 whitespace-pre-wrap">
+    <p className="text-sm text-gray-700 whitespace-pre-wrap">
       {event.comment_text}
     </p>
   );
@@ -101,11 +101,9 @@ function CommentContent({ event }: { event: TicketEventWithUser & { event_type: 
 
 function NoteContent({ event }: { event: TicketEventWithUser & { event_type: 'note' } }) {
   return (
-    <div className="space-y-1">
-      <div className="text-xs font-semibold text-gray-500">Internal Note</div>
-      <p className="text-gray-700 whitespace-pre-wrap">
-        {event.comment_text}
-      </p>
+    <div className="text-sm text-gray-700">
+      <p className="italic mb-1">Internal Note:</p>
+      <p className="whitespace-pre-wrap">{event.comment_text}</p>
     </div>
   );
 }
@@ -113,10 +111,11 @@ function NoteContent({ event }: { event: TicketEventWithUser & { event_type: 'no
 function TagChangeContent({ event }: { event: TicketEventWithUser & { event_type: 'tag_change' } }) {
   return (
     <p className="text-sm text-gray-700">
-      Changed tag from{' '}
-      <span className="font-medium">{event.old_value || 'none'}</span>
-      {' '}to{' '}
-      <span className="font-medium">{event.new_value || 'none'}</span>
+      {event.old_value ? (
+        <>Changed tag from &ldquo;{event.old_value}&rdquo; to &ldquo;{event.new_value}&rdquo;</>
+      ) : (
+        <>Added tag &ldquo;{event.new_value}&rdquo;</>
+      )}
     </p>
   );
 }
@@ -139,7 +138,7 @@ function RatingContent({ event }: { event: TicketEventWithUser & { event_type: '
       </div>
       {event.rating_comment && (
         <p className="text-gray-700 text-sm mt-1">
-          "{event.rating_comment}"
+          &ldquo;{event.rating_comment}&rdquo;
         </p>
       )}
     </div>
