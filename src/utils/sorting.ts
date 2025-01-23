@@ -28,6 +28,9 @@ export interface SortableTicket {
   customer?: {
     name: string;
   } | null;
+  rating?: number;
+  rating_comment?: string;
+  rating_submitted_at?: string;
 }
 
 type SortableField = keyof SortableTicket | 'created_by';
@@ -79,6 +82,13 @@ export function sortTickets(
         return direction === 'asc'
           ? aCustomer.localeCompare(bCustomer)
           : bCustomer.localeCompare(aCustomer);
+
+      case 'rating':
+        const aRating = a.rating || 0;
+        const bRating = b.rating || 0;
+        return direction === 'asc'
+          ? aRating - bRating
+          : bRating - aRating;
 
       default:
         return 0;

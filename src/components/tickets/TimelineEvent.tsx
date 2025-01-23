@@ -5,6 +5,7 @@ import { TicketEventWithUser } from '@/types/tickets';
 import { formatCommentDate } from '@/utils/tickets/commentUtils';
 import PriorityBadge from './PriorityBadge';
 import { supabase } from '@/utils/supabase';
+import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 interface TimelineEventProps {
   event: TicketEventWithUser;
@@ -120,6 +121,31 @@ function TagChangeContent({ event }: { event: TicketEventWithUser & { event_type
   );
 }
 
+function RatingContent({ event }: { event: TicketEventWithUser & { event_type: 'rating' } }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1">
+        <div className="flex">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <StarIconSolid
+              key={star}
+              className={`w-5 h-5 ${star <= event.rating_value ? 'text-yellow-400' : 'text-gray-200'}`}
+            />
+          ))}
+        </div>
+        <span className="text-sm text-gray-600 ml-2">
+          Rated {event.rating_value} out of 5 stars
+        </span>
+      </div>
+      {event.rating_comment && (
+        <p className="text-gray-700 text-sm mt-1">
+          "{event.rating_comment}"
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function TimelineEvent({ event }: TimelineEventProps) {
   const getBorderColor = () => {
     switch (event.event_type) {
@@ -133,13 +159,17 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
         return 'border-gray-500';
       case 'tag_change':
         return 'border-blue-500';
+      case 'rating':
+        return 'border-yellow-400';
       default:
         return '';
     }
   };
 
   const getBackgroundColor = () => {
-    return event.event_type === 'note' ? 'bg-gray-50' : 'bg-white';
+    if (event.event_type === 'note') return 'bg-gray-50';
+    if (event.event_type === 'rating') return 'bg-yellow-50';
+    return 'bg-white';
   };
 
   const renderEventContent = () => {
@@ -156,6 +186,8 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
         return <TagChangeContent event={event} />;
       case 'comment':
         return <CommentContent event={event} />;
+      case 'rating':
+        return <RatingContent event={event} />;
       default:
         return null;
     }

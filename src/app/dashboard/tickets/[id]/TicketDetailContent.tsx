@@ -119,6 +119,7 @@ export default function TicketDetailContent({
           ticketId={ticket.id}
           isAdmin={true}
           onEventsUpdate={onEventsUpdate}
+          ticket={ticket}
         />
       </div>
 

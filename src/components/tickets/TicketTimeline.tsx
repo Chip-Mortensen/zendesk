@@ -1,53 +1,73 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { TicketEventWithUser } from '@/types/tickets';
+import { TicketEventWithUser, Ticket } from '@/types/tickets';
 import { supabase } from '@/utils/supabase';
 import TimelineEvent from '@/components/tickets/TimelineEvent';
-import { useTicketTimelineSubscription } from '@/hooks/tickets/useTicketTimelineSubscription';
+import { RatingButton } from '@/components/tickets/RatingButton';
+import { ticketQueries } from '@/utils/sql/ticketQueries';
 
 interface TicketTimelineProps {
   events: TicketEventWithUser[];
   ticketId: string;
   isAdmin?: boolean;
   onEventsUpdate?: (updater: (events: TicketEventWithUser[]) => TicketEventWithUser[]) => void;
+  ticket: Ticket;
 }
 
-export default function TicketTimeline({ events: initialEvents, ticketId, isAdmin = false, onEventsUpdate }: TicketTimelineProps) {
-  const [events, setEvents] = useState<TicketEventWithUser[]>(initialEvents);
+export default function TicketTimeline({ 
+  events,
+  ticketId, 
+  isAdmin = false, 
+  onEventsUpdate,
+  ticket
+}: TicketTimelineProps) {
   const timelineEndRef = useRef<HTMLDivElement>(null);
   const [newMessage, setNewMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [userId, setUserId] = useState<string>('');
+  const [userRole, setUserRole] = useState<string>('');
 
-  // Filter events based on user type
-  const filteredEvents = events.filter(event => {
-    if (isAdmin) return true;
-    return !['tag_change', 'note', 'priority_change'].includes(event.event_type);
-  });
-
-  // Keep events in sync with props
   useEffect(() => {
-    setEvents(initialEvents);
-  }, [initialEvents]);
+    async function getUserData() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        setUserId(session.user.id);
+        
+        // Get user's role
+        const { data: memberData } = await supabase
+          .from('org_members')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .single();
+        
+        if (memberData) {
+          setUserRole(memberData.role);
+        }
+      }
+    }
+    getUserData();
+  }, []);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     timelineEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [filteredEvents]);
+  }, [events]);
 
-  // Handle state updates in one place
-  const updateEvents = (newEvents: TicketEventWithUser[]) => {
-    setEvents(newEvents);
-    if (onEventsUpdate) {
-      onEventsUpdate(() => newEvents);
+  // Filter events for rendering
+  const visibleEvents = events.filter(event => {
+    if (isAdmin || userRole === 'employee') return true;
+    return !['tag_change', 'note', 'priority_change'].includes(event.event_type);
+  });
+
+  const handleRatingSubmit = async (ticketId: string, rating: number, comment?: string) => {
+    try {
+      await ticketQueries.updateTicketRating(ticketId, rating, comment, userId);
+      // Events will update automatically through subscription
+    } catch (error) {
+      console.error('Error submitting rating:', error);
     }
   };
-
-  // Subscribe to real-time updates
-  useTicketTimelineSubscription(ticketId, (updater) => {
-    const newEvents = updater(events);
-    updateEvents(newEvents);
-  });
 
   async function handleSubmit(e: React.FormEvent, type: 'comment' | 'note' = 'comment') {
     e.preventDefault();
@@ -80,11 +100,29 @@ export default function TicketTimeline({ events: initialEvents, ticketId, isAdmi
   return (
     <div className="bg-white shadow rounded-lg">
       <div className="h-[400px] overflow-y-auto p-6 space-y-4">
-        {filteredEvents.map((event) => (
-          <TimelineEvent key={event.id} event={event} />
-        ))}
+        <div className="flow-root">
+          <ul role="list" className="space-y-4">
+            {visibleEvents.map((event) => (
+              <TimelineEvent key={event.id} event={event} />
+            ))}
+          </ul>
+        </div>
         <div ref={timelineEndRef} />
       </div>
+
+      {ticket?.status === 'closed' && !isAdmin && !ticket.rating && (
+        <div className="border-t border-gray-200 p-4 bg-yellow-50">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-700">How was your experience with this ticket?</span>
+            <RatingButton
+              ticketId={ticketId}
+              currentRating={ticket.rating}
+              currentComment={ticket.rating_comment}
+              onSubmitRating={handleRatingSubmit}
+            />
+          </div>
+        </div>
+      )}
 
       <form onSubmit={(e) => handleSubmit(e)} className="border-t border-gray-200 p-4">
         <div>

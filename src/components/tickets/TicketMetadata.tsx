@@ -29,9 +29,9 @@ export default function TicketMetadata({
   return (
     <div className="flex flex-wrap items-center gap-4">
       <div className="flex items-center space-x-4">
-        <StatusBadge status={status} />
-        {showPriorityBadge && <PriorityBadge priority={priority} />}
-        {tag && <TagBadge tag={tag} />}
+        <StatusBadge status={status} size="md" />
+        {showPriorityBadge && <PriorityBadge priority={priority} size="md" />}
+        {tag && <TagBadge tag={tag} size="md" />}
       </div>
       <div className="flex items-center gap-4">
         {showStatusControl && onStatusChange && (

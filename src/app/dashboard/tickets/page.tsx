@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import PriorityBadge from '@/components/tickets/PriorityBadge';
 import TagBadge from '@/components/tickets/TagBadge';
-import SortableHeader from '@/components/table/SortableHeader';
+import SortableHeader from '@/components/SortableHeader';
 import { sortTickets } from '@/utils/sorting';
 import TicketFilters, { TicketFilters as TicketFiltersType } from '@/components/tickets/TicketFilters';
 import { isToday, isThisWeek } from 'date-fns';
@@ -14,6 +14,19 @@ import { userQueries } from '@/utils/sql/userQueries';
 import { UserSettings } from '@/types/settings';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import BulkActionsBar from '@/components/tickets/BulkActionsBar';
+import { StarIcon } from '@heroicons/react/24/outline';
+import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
+
+function RatingDisplay({ rating }: { rating?: number }) {
+  if (!rating) return null;
+  
+  return (
+    <div className="flex items-center gap-1">
+      <StarIconSolid className="w-4 h-4 text-yellow-400" />
+      <span className="text-sm text-gray-600">{rating}</span>
+    </div>
+  );
+}
 
 export default function TicketsPage() {
   const router = useRouter();
@@ -339,42 +352,56 @@ export default function TicketsPage() {
                   field="title"
                   currentSort={sortConfig}
                   onSort={handleSort}
+                  className="w-1/4"
                 />
                 <SortableHeader
                   label="Status"
                   field="status"
                   currentSort={sortConfig}
                   onSort={handleSort}
+                  className="w-24"
                 />
                 <SortableHeader
                   label="Priority"
                   field="priority"
                   currentSort={sortConfig}
                   onSort={handleSort}
+                  className="w-24"
                 />
                 <SortableHeader
                   label="Assignee"
-                  field="assigned_to"
+                  field="assignee"
                   currentSort={sortConfig}
                   onSort={handleSort}
+                  className="w-32"
                 />
                 <SortableHeader
                   label="Customer"
-                  field="created_by"
+                  field="customer"
                   currentSort={sortConfig}
                   onSort={handleSort}
+                  className="w-32"
                 />
                 <SortableHeader
                   label="Tag"
                   field="tag"
                   currentSort={sortConfig}
                   onSort={handleSort}
+                  className="w-24"
+                />
+                <SortableHeader
+                  label="Rating"
+                  field="rating"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                  className="w-20"
                 />
                 <SortableHeader
                   label="Created"
                   field="created_at"
                   currentSort={sortConfig}
                   onSort={handleSort}
+                  className="w-28"
                 />
               </tr>
             </thead>
@@ -382,7 +409,7 @@ export default function TicketsPage() {
               {sortedTickets.map((ticket) => (
                 <tr 
                   key={ticket.id} 
-                  className="group transition-colors duration-150 hover:bg-gray-50"
+                  className="transition-colors duration-150 hover:bg-gray-50"
                 >
                   <td className="relative px-6 py-4" onClick={(e) => e.stopPropagation()}>
                     <input
@@ -393,14 +420,14 @@ export default function TicketsPage() {
                     />
                   </td>
                   <td 
-                    className="px-6 py-4 cursor-pointer"
+                    className="px-3 py-4 cursor-pointer max-w-0"
                     onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
                   >
-                    <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600">{ticket.title}</div>
-                    <div className="text-sm text-gray-500">{ticket.description.substring(0, 100)}...</div>
+                    <div className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600">{ticket.title}</div>
+                    <div className="text-sm text-gray-500 truncate">{ticket.description}</div>
                   </td>
                   <td 
-                    className="px-6 py-4 whitespace-nowrap cursor-pointer"
+                    className="px-3 py-4 whitespace-nowrap cursor-pointer"
                     onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
                   >
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
@@ -408,33 +435,37 @@ export default function TicketsPage() {
                     </span>
                   </td>
                   <td 
-                    className="px-6 py-4 whitespace-nowrap cursor-pointer"
+                    className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
                     onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
                   >
-                    <PriorityBadge priority={ticket.priority} />
+                    <PriorityBadge priority={ticket.priority} size="sm" />
                   </td>
                   <td 
-                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
+                    className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer truncate"
                     onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
                   >
-                    {ticket.assignee?.name || (
-                      <span className="text-yellow-600">Unassigned</span>
-                    )}
+                    {ticket.assignee?.name || 'Unassigned'}
                   </td>
                   <td 
-                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
+                    className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer truncate"
                     onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
                   >
-                    {ticket.customer?.name}
+                    {ticket.customer?.name || 'Unknown'}
                   </td>
                   <td 
-                    className="px-6 py-4 whitespace-nowrap cursor-pointer"
+                    className="px-3 py-4 whitespace-nowrap text-sm cursor-pointer"
                     onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
                   >
-                    <TagBadge tag={ticket.tag} />
+                    {ticket.tag && <TagBadge tag={ticket.tag} size="sm" />}
                   </td>
                   <td 
-                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
+                    className="px-3 py-4 whitespace-nowrap text-sm cursor-pointer"
+                    onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
+                  >
+                    <RatingDisplay rating={ticket.rating} />
+                  </td>
+                  <td 
+                    className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
                     onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
                   >
                     {new Date(ticket.created_at).toLocaleDateString()}

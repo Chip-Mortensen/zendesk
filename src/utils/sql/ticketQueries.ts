@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-import { Ticket, TicketEvent, TicketEventWithUser } from '@/types/tickets';
+import { Ticket, TicketEvent, TicketEventWithUser, TicketRatingEvent } from '@/types/tickets';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 // Ticket Queries
@@ -251,6 +251,46 @@ export const ticketQueries = {
     });
 
     return { data: data?.[0], error };
+  },
+
+  // Update ticket rating and create a rating event
+  async updateTicketRating(ticketId: string, rating: number, comment: string | undefined, userId: string) {
+    const { data: ticket } = await supabase
+      .from('tickets')
+      .select('rating')
+      .eq('id', ticketId)
+      .single();
+
+    if (!ticket) throw new Error('Ticket not found');
+
+    // Update the ticket rating
+    const { error: updateError } = await supabase
+      .from('tickets')
+      .update({
+        rating,
+        rating_comment: comment,
+        rating_submitted_at: new Date().toISOString(),
+      })
+      .eq('id', ticketId);
+
+    if (updateError) throw updateError;
+
+    // Create a rating event
+    const event: Omit<TicketRatingEvent, 'id' | 'created_at'> = {
+      ticket_id: ticketId,
+      event_type: 'rating',
+      created_by: userId,
+      rating_value: rating,
+      rating_comment: comment
+    };
+
+    const { error: eventError } = await supabase
+      .from('ticket_events')
+      .insert([event]);
+
+    if (eventError) throw eventError;
+
+    return { success: true };
   }
 };
 
@@ -318,6 +358,7 @@ export const subscriptionHelpers = {
 
   // Subscribe to ticket events
   subscribeToEvents(ticketId: string, callback: (payload: RealtimePostgresChangesPayload<TicketEventWithUser>) => void) {
+    console.log('Setting up subscription for ticket:', ticketId);
     return supabase
       .channel(`events-${ticketId}`)
       .on(
@@ -329,13 +370,21 @@ export const subscriptionHelpers = {
           filter: `ticket_id=eq.${ticketId}`,
         },
         async (payload) => {
+          console.log('Received event payload:', { 
+            eventType: payload.eventType,
+            table: payload.table,
+            schema: payload.schema,
+            new: payload.new,
+          });
+
           // For INSERT and UPDATE events, fetch the full event data with user info
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const { data } = await supabase
+            console.log('Fetching full event data for:', payload.new.id);
+            const { data, error } = await supabase
               .from('ticket_events')
               .select(`
                 *,
-                users (
+                users!inner (
                   id,
                   name,
                   email
@@ -344,7 +393,13 @@ export const subscriptionHelpers = {
               .eq('id', payload.new.id)
               .single();
             
+            if (error) {
+              console.error('Error fetching event data:', error);
+              return;
+            }
+            
             if (data) {
+              console.log('Successfully fetched event data:', data);
               callback({
                 ...payload,
                 new: data
@@ -357,6 +412,8 @@ export const subscriptionHelpers = {
           callback(payload as RealtimePostgresChangesPayload<TicketEventWithUser>);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
   }
 }; 

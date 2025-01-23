@@ -8,6 +8,8 @@ import { sortTickets } from '@/utils/sorting';
 import CreateTicketModal from '@/components/tickets/CreateTicketModal';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { Ticket } from '@/types/tickets';
+import { RatingButton } from '@/components/tickets/RatingButton';
+import { ticketQueries } from '@/utils/sql/ticketQueries';
 
 export default function CustomerTicketsPage() {
   const params = useParams();
@@ -161,6 +163,22 @@ export default function CustomerTicketsPage() {
     }
   };
 
+  const handleRatingSubmit = async (ticketId: string, rating: number, comment?: string) => {
+    try {
+      await ticketQueries.updateTicketRating(ticketId, rating, comment, userId);
+      // Update the ticket in the local state
+      setTickets(current =>
+        current.map(t =>
+          t.id === ticketId
+            ? { ...t, rating, rating_comment: comment, rating_submitted_at: new Date().toISOString() }
+            : t
+        )
+      );
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-12">Loading tickets...</div>;
   }
@@ -203,8 +221,14 @@ export default function CustomerTicketsPage() {
                     onSort={handleSort}
                   />
                   <SortableHeader
-                    label="Priority"
-                    field="priority"
+                    label="Support Agent"
+                    field="assignee"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    label="Rating"
+                    field="rating"
                     currentSort={sortConfig}
                     onSort={handleSort}
                   />
@@ -220,24 +244,43 @@ export default function CustomerTicketsPage() {
                 {sortedTickets.map((ticket) => (
                   <tr 
                     key={ticket.id} 
-                    className="transition-colors duration-150 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => router.push(`/org/${orgSlug}/tickets/${ticket.id}`)}
+                    className="transition-colors duration-150 hover:bg-gray-50"
                   >
-                    <td className="px-6 py-4">
+                    <td 
+                      className="px-6 py-4 cursor-pointer"
+                      onClick={() => router.push(`/org/${orgSlug}/tickets/${ticket.id}`)}
+                    >
                       <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600">{ticket.title}</div>
                       <div className="text-sm text-gray-500">{ticket.description.substring(0, 100)}...</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td 
+                      className="px-6 py-4 whitespace-nowrap cursor-pointer"
+                      onClick={() => router.push(`/org/${orgSlug}/tickets/${ticket.id}`)}
+                    >
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
                         {ticket.status.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {ticket.assignee?.name || (
-                        <span className="text-yellow-600">Unassigned</span>
+                    <td 
+                      className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
+                      onClick={() => router.push(`/org/${orgSlug}/tickets/${ticket.id}`)}
+                    >
+                      {ticket.assignee?.name || 'Unassigned'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm" onClick={(e) => e.stopPropagation()}>
+                      {ticket.status === 'closed' && (
+                        <RatingButton
+                          ticketId={ticket.id}
+                          currentRating={ticket.rating}
+                          currentComment={ticket.rating_comment}
+                          onSubmitRating={handleRatingSubmit}
+                        />
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td 
+                      className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
+                      onClick={() => router.push(`/org/${orgSlug}/tickets/${ticket.id}`)}
+                    >
                       {new Date(ticket.created_at).toLocaleDateString()}
                     </td>
                   </tr>
