@@ -14,6 +14,7 @@ export default function CustomerChatPage() {
   const [loading, setLoading] = useState(true);
   const [subject, setSubject] = useState('');
   const [creating, setCreating] = useState(false);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -28,6 +29,8 @@ export default function CustomerChatPage() {
         .single();
 
       if (!orgData) return;
+
+      setOrganizationId(orgData.id);
 
       const { data } = await chatQueries.getUserConversations(user.id, orgData.id);
       if (data) {
@@ -91,32 +94,33 @@ export default function CustomerChatPage() {
   }, [loadConversations]);
 
   useEffect(() => {
-    async function setupSubscription() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const channel = supabase
-          .channel('conversations')
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'conversations',
-              filter: `created_by=eq.${user.id}`
-            },
-            () => {
+    if (organizationId) {
+      const channel = supabase
+        .channel('conversations')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'conversations',
+            filter: `organization_id=eq.${organizationId}`
+          },
+          async (payload) => {
+            if (payload.eventType === 'DELETE') {
+              setConversations(current => current.filter(conv => conv.id !== payload.old.id));
+            } else {
+              // For INSERT and UPDATE, reload the full list to ensure we only show conversations the user should see
               loadConversations();
             }
-          )
-          .subscribe();
+          }
+        )
+        .subscribe();
 
-        return () => {
-          channel.unsubscribe();
-        };
-      }
+      return () => {
+        channel.unsubscribe();
+      };
     }
-    setupSubscription();
-  }, [loadConversations]);
+  }, [organizationId, loadConversations]);
 
   if (loading) {
     return <div className="p-6">Loading conversations...</div>;

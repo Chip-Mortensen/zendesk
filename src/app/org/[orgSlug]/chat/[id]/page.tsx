@@ -7,6 +7,7 @@ import { Conversation, ChatEventWithUser, ChatMessageEvent } from '@/types/chat'
 import { chatQueries, eventQueries } from '@/utils/sql/chatQueries';
 import ConversationTimeline from '@/components/chat/ConversationTimeline';
 import { formatStatus } from '@/utils/dates';
+import { formatChatTime } from '@/utils/dateUtils';
 
 export default function ConversationDetailPage() {
   const params = useParams();
@@ -15,6 +16,7 @@ export default function ConversationDetailPage() {
   const [events, setEvents] = useState<ChatEventWithUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [assigneeName, setAssigneeName] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -50,6 +52,17 @@ export default function ConversationDetailPage() {
         throw new Error(eventsError.message);
       }
       setEvents(eventsData || []);
+
+      // Fetch assignee name
+      const { data: assigneeData } = await supabase
+        .from('users')
+        .select('name')
+        .eq('id', conversationData.assigned_to)
+        .single();
+
+      if (assigneeData) {
+        setAssigneeName(assigneeData.name);
+      }
     } catch (error) {
       console.error('Error loading conversation details:', error);
       router.push(`/org/${params.orgSlug}/chat`);
@@ -67,7 +80,8 @@ export default function ConversationDetailPage() {
 
   useEffect(() => {
     if (conversation?.id) {
-      const channel = supabase
+      // Subscribe to chat events
+      const eventsChannel = supabase
         .channel('chat-events')
         .on(
           'postgres_changes',
@@ -87,11 +101,59 @@ export default function ConversationDetailPage() {
         )
         .subscribe();
 
+      // Subscribe to conversation changes
+      const conversationChannel = supabase
+        .channel('conversation-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'conversations',
+            filter: `id=eq.${conversation.id}`
+          },
+          async (payload) => {
+            setConversation(payload.new as Conversation);
+            if (payload.new.assigned_to) {
+              const { data: assigneeData } = await supabase
+                .from('users')
+                .select('name')
+                .eq('id', payload.new.assigned_to)
+                .single();
+              if (assigneeData) {
+                setAssigneeName(assigneeData.name);
+              }
+            } else {
+              setAssigneeName(null);
+            }
+          }
+        )
+        .subscribe();
+
       return () => {
-        channel.unsubscribe();
+        eventsChannel.unsubscribe();
+        conversationChannel.unsubscribe();
       };
     }
   }, [conversation?.id]);
+
+  // Add cleanup effect to close conversation when leaving page
+  useEffect(() => {
+    return () => {
+      if (conversation?.id && conversation.status !== 'closed' && currentUserId) {
+        // First check if the conversation still exists
+        chatQueries.getConversationById(conversation.id)
+          .then(({ data }) => {
+            if (data) {
+              chatQueries.updateConversationStatus(conversation.id, 'closed', currentUserId);
+            }
+          })
+          .catch(error => {
+            console.error('Error checking conversation existence:', error);
+          });
+      }
+    };
+  }, [conversation?.id, conversation?.status, currentUserId]);
 
   async function handleSendMessage(message: string) {
     if (!conversation) return;
@@ -141,9 +203,25 @@ export default function ConversationDetailPage() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold">{conversation.subject}</h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Started {new Date(conversation.created_at).toLocaleDateString()}
-              </p>
+              <div className="mt-1 space-y-1">
+                <p className="text-sm text-gray-500">
+                  {formatChatTime(
+                    conversation.status === 'closed' ? conversation.updated_at : conversation.created_at,
+                    conversation.status === 'closed' ? 'Closed' : 'Started'
+                  )}
+                </p>
+                {conversation.assigned_to ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                    Speaking with {assigneeName}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                    Connecting with Representative...
+                  </div>
+                )}
+              </div>
             </div>
             <span className="px-3 py-1.5 text-sm font-medium rounded-full capitalize flex items-center" 
               style={{

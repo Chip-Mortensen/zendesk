@@ -64,12 +64,23 @@ export default function ConversationEvent({ event, currentUserId }: Conversation
       content = (
         <div className="flex items-center justify-center">
           <div className="bg-gray-100 rounded-full px-4 py-1.5 text-sm text-gray-500 flex items-center space-x-1">
-            <span>{event.users.name}</span>
-            <span>•</span>
-            <span>Changed status from <span className="font-medium">{formatStatus(statusEvent.old_status)}</span> to{' '}
-            <span className="font-medium">{formatStatus(statusEvent.new_status)}</span></span>
-            <span>•</span>
-            <span className="text-gray-400">{formatDate(event.created_at)}</span>
+            {statusEvent.new_status === 'closed' ? (
+              <>
+                <span className="font-medium">{event.users.name}</span>
+                <span>left the chat</span>
+                <span>•</span>
+                <span className="text-gray-400">{formatDate(event.created_at)}</span>
+              </>
+            ) : (
+              <>
+                <span>{event.users.name}</span>
+                <span>•</span>
+                <span>Changed status from <span className="font-medium">{formatStatus(statusEvent.old_status)}</span> to{' '}
+                <span className="font-medium">{formatStatus(statusEvent.new_status)}</span></span>
+                <span>•</span>
+                <span className="text-gray-400">{formatDate(event.created_at)}</span>
+              </>
+            )}
           </div>
         </div>
       );
@@ -79,14 +90,27 @@ export default function ConversationEvent({ event, currentUserId }: Conversation
       content = (
         <div className="flex items-center justify-center">
           <div className="bg-gray-100 rounded-full px-4 py-1.5 text-sm text-gray-500 flex items-center space-x-1">
-            <span>{event.users.name}</span>
-            <span>•</span>
-            <span>
-              {assignEvent.old_assignee ? 'Reassigned' : 'Assigned'} to{' '}
-              <span className="font-medium">{assigneeName || 'Unassigned'}</span>
-            </span>
-            <span>•</span>
-            <span className="text-gray-400">{formatDate(event.created_at)}</span>
+            {currentUserId === event.created_by ? (
+              // Admin view
+              <>
+                <span>{event.users.name}</span>
+                <span>•</span>
+                <span>
+                  {assignEvent.old_assignee ? 'Reassigned' : 'Assigned'} to{' '}
+                  <span className="font-medium">{assigneeName || 'Unassigned'}</span>
+                </span>
+                <span>•</span>
+                <span className="text-gray-400">{formatDate(event.created_at)}</span>
+              </>
+            ) : (
+              // Customer view
+              <>
+                <span className="font-medium">{assigneeName}</span>
+                <span>has joined the chat</span>
+                <span>•</span>
+                <span className="text-gray-400">{formatDate(event.created_at)}</span>
+              </>
+            )}
           </div>
         </div>
       );

@@ -7,6 +7,7 @@ import { Conversation, ChatEventWithUser, ChatMessageEvent } from '@/types/chat'
 import { chatQueries, eventQueries } from '@/utils/sql/chatQueries';
 import ConversationTimeline from '@/components/chat/ConversationTimeline';
 import Select from '@/components/common/Select';
+import { formatChatTime } from '@/utils/dateUtils';
 
 export default function AdminConversationDetailPage() {
   const params = useParams();
@@ -61,7 +62,8 @@ export default function AdminConversationDetailPage() {
 
   useEffect(() => {
     if (conversation?.id) {
-      const channel = supabase
+      // Subscribe to chat events
+      const eventsChannel = supabase
         .channel('chat-events')
         .on(
           'postgres_changes',
@@ -81,8 +83,26 @@ export default function AdminConversationDetailPage() {
         )
         .subscribe();
 
+      // Subscribe to conversation changes
+      const conversationChannel = supabase
+        .channel('conversation-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'conversations',
+            filter: `id=eq.${conversation.id}`
+          },
+          async (payload) => {
+            setConversation(payload.new as Conversation);
+          }
+        )
+        .subscribe();
+
       return () => {
-        channel.unsubscribe();
+        eventsChannel.unsubscribe();
+        conversationChannel.unsubscribe();
       };
     }
   }, [conversation?.id]);
@@ -96,7 +116,6 @@ export default function AdminConversationDetailPage() {
       if (!user) return;
 
       await chatQueries.updateConversationStatus(conversation.id, newStatus, user.id);
-      setConversation({ ...conversation, status: newStatus });
     } catch (error) {
       console.error('Error updating status:', error);
     } finally {
@@ -181,7 +200,10 @@ export default function AdminConversationDetailPage() {
               <div>
                 <h1 className="text-2xl font-bold">{conversation.subject}</h1>
                 <p className="mt-1 text-sm text-gray-500">
-                  Started {new Date(conversation.created_at).toLocaleDateString()}
+                  {formatChatTime(
+                    conversation.status === 'closed' ? conversation.updated_at : conversation.created_at,
+                    conversation.status === 'closed' ? 'Closed' : 'Started'
+                  )}
                 </p>
               </div>
               <div className="flex items-center space-x-4">
@@ -191,7 +213,7 @@ export default function AdminConversationDetailPage() {
                   options={[
                     { label: 'Open', value: 'open' },
                     { label: 'In Progress', value: 'in_progress' },
-                    { label: 'Resolved', value: 'resolved' }
+                    { label: 'Closed', value: 'closed' }
                   ]}
                   onChange={handleStatusChange}
                   isLoading={updating}

@@ -1,17 +1,28 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import { Conversation } from '@/types/chat';
 import { chatQueries } from '@/utils/sql/chatQueries';
 import { formatStatus } from '@/utils/dates';
+import { isToday, isThisWeek } from 'date-fns';
+import ConversationFilters, { ConversationFilters as ConversationFiltersType } from '@/components/chat/ConversationFilters';
+import { userQueries } from '@/utils/sql/userQueries';
+import { UserSettings } from '@/types/settings';
 
 export default function AdminChatPage() {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userSettings, setUserSettings] = useState<UserSettings>({});
+  const [filters, setFilters] = useState<ConversationFiltersType>({
+    status: [],
+    assignee: [],
+    created: []
+  });
 
   const loadData = useCallback(async () => {
     try {
@@ -19,6 +30,19 @@ export default function AdminChatPage() {
       if (!session) {
         router.push('/auth?type=admin');
         return;
+      }
+
+      setUserId(session.user.id);
+
+      // Load user settings
+      try {
+        const settings = await userQueries.getUserSettings(session.user.id);
+        if (settings?.conversation_filters) {
+          setFilters(settings.conversation_filters);
+          setUserSettings(settings);
+        }
+      } catch (error) {
+        console.error('Error loading user settings:', error);
       }
 
       // Get user's organization
@@ -51,6 +75,52 @@ export default function AdminChatPage() {
   const handleConversationClick = useCallback((conversationId: string) => {
     router.push(`/dashboard/chat/${conversationId}`);
   }, [router]);
+
+  const handleFiltersChange = async (newFilters: ConversationFiltersType) => {
+    if (!userId) {
+      console.error('No user ID available when trying to save filters');
+      return;
+    }
+    
+    setFilters(newFilters);
+    
+    try {
+      // Preserve existing settings and only update conversation filters
+      const newSettings: UserSettings = {
+        ...userSettings,  // Keep all existing settings
+        conversation_filters: newFilters  // Only update conversation filters
+      };
+      
+      // Get the latest settings before updating to ensure we have the most recent ticket filters
+      const currentSettings = await userQueries.getUserSettings(userId);
+      
+      // Merge everything together, prioritizing our new conversation filters
+      const mergedSettings: UserSettings = {
+        ...currentSettings,  // Start with current settings from DB
+        ...newSettings,      // Add our new settings
+        ticket_filters: currentSettings.ticket_filters || userSettings.ticket_filters  // Explicitly preserve ticket filters
+      };
+      
+      await userQueries.updateUserSettings(userId, mergedSettings);
+      setUserSettings(mergedSettings);
+    } catch (error) {
+      console.error('Error saving filters:', error);
+    }
+  };
+
+  const filteredConversations = useMemo(() => {
+    return conversations.filter(conversation => {
+      const matchesStatus = filters.status.length === 0 || filters.status.includes(conversation.status);
+      const matchesAssignee = filters.assignee.length === 0 || filters.assignee.includes(conversation.assignee?.name || '');
+      const matchesCreated = filters.created.length === 0 || filters.created.some(dateFilter => {
+        if (dateFilter === 'today') return isToday(new Date(conversation.created_at));
+        if (dateFilter === 'this_week') return isThisWeek(new Date(conversation.created_at));
+        return true;
+      });
+
+      return matchesStatus && matchesAssignee && matchesCreated;
+    });
+  }, [conversations, filters]);
 
   useEffect(() => {
     loadData();
@@ -101,12 +171,20 @@ export default function AdminChatPage() {
           </p>
         </div>
 
+        <div className="border-b border-gray-200">
+          <ConversationFilters
+            conversations={conversations}
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+          />
+        </div>
+
         <div className="max-h-[calc(100vh-24rem)] overflow-auto">
           <div className="divide-y divide-gray-200">
-            {conversations.length === 0 ? (
-              <p className="p-6 text-gray-500">No conversations yet.</p>
+            {filteredConversations.length === 0 ? (
+              <p className="p-6 text-gray-500">No conversations found.</p>
             ) : (
-              conversations.map((conversation) => (
+              filteredConversations.map((conversation) => (
                 <div
                   key={conversation.id}
                   className="p-6 hover:bg-gray-50 cursor-pointer"
