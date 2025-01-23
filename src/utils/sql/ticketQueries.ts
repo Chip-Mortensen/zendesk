@@ -207,6 +207,50 @@ export const ticketQueries = {
 
     if (error) throw error;
     return (data || []).map((row: { tag: string }) => row.tag);
+  },
+
+  // Bulk update ticket status
+  async bulkUpdateStatus(ticketIds: string[], newStatus: Ticket['status'], userId: string) {
+    const { data, error } = await supabase.rpc('bulk_update_ticket_status', {
+      p_ticket_ids: ticketIds,
+      p_new_status: newStatus,
+      p_user_id: userId
+    });
+
+    return { data: data?.[0], error };
+  },
+
+  // Bulk update ticket priority
+  async bulkUpdatePriority(ticketIds: string[], newPriority: Ticket['priority'], userId: string) {
+    const { data, error } = await supabase.rpc('bulk_update_ticket_priority', {
+      p_ticket_ids: ticketIds,
+      p_new_priority: newPriority,
+      p_user_id: userId
+    });
+
+    return { data: data?.[0], error };
+  },
+
+  // Bulk update ticket assignment
+  async bulkUpdateAssignment(ticketIds: string[], newAssigneeId: string | null, userId: string) {
+    const { data, error } = await supabase.rpc('bulk_update_ticket_assignment', {
+      p_ticket_ids: ticketIds,
+      p_new_assignee: newAssigneeId === 'unassigned' ? null : newAssigneeId,
+      p_user_id: userId
+    });
+
+    return { data: data?.[0], error };
+  },
+
+  // Bulk update ticket tag
+  async bulkUpdateTag(ticketIds: string[], newTag: string | null, userId: string) {
+    const { data, error } = await supabase.rpc('bulk_update_ticket_tag', {
+      p_ticket_ids: ticketIds,
+      p_new_tag: newTag === '' ? null : newTag,
+      p_user_id: userId
+    });
+
+    return { data: data?.[0], error };
   }
 };
 

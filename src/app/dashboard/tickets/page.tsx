@@ -13,6 +13,7 @@ import { Ticket } from '@/types/tickets';
 import { userQueries } from '@/utils/sql/userQueries';
 import { UserSettings } from '@/types/settings';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import BulkActionsBar from '@/components/tickets/BulkActionsBar';
 
 export default function TicketsPage() {
   const router = useRouter();
@@ -33,6 +34,9 @@ export default function TicketsPage() {
     tag: [],
     created: []
   });
+
+  // Add selected tickets state
+  const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     async function loadUserAndTickets() {
@@ -261,6 +265,33 @@ export default function TicketsPage() {
     }
   };
 
+  // Toggle single ticket selection
+  const toggleTicketSelection = (ticketId: string) => {
+    setSelectedTickets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(ticketId)) {
+        newSet.delete(ticketId);
+      } else {
+        newSet.add(ticketId);
+      }
+      return newSet;
+    });
+  };
+
+  // Toggle all tickets selection
+  const toggleSelectAll = () => {
+    if (selectedTickets.size === sortedTickets.length) {
+      setSelectedTickets(new Set());
+    } else {
+      setSelectedTickets(new Set(sortedTickets.map(t => t.id)));
+    }
+  };
+
+  // Clear selection
+  const clearSelection = () => {
+    setSelectedTickets(new Set());
+  };
+
   if (loading) {
     return <div className="text-center py-12">Loading tickets...</div>;
   }
@@ -283,12 +314,26 @@ export default function TicketsPage() {
             filters={filters}
             onFiltersChange={handleFiltersChange}
           />
+          {selectedTickets.size > 0 && (
+            <BulkActionsBar
+              selectedTickets={Array.from(selectedTickets)}
+              onClearSelection={clearSelection}
+            />
+          )}
         </div>
 
         <div className="max-h-[calc(100vh-24rem)] overflow-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 sticky top-0">
               <tr>
+                <th scope="col" className="relative px-6 py-3">
+                  <input
+                    type="checkbox"
+                    className="absolute left-4 top-1/2 -mt-3 h-6 w-6 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={selectedTickets.size === sortedTickets.length && sortedTickets.length > 0}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <SortableHeader
                   label="Title"
                   field="title"
@@ -337,33 +382,61 @@ export default function TicketsPage() {
               {sortedTickets.map((ticket) => (
                 <tr 
                   key={ticket.id} 
-                  className="transition-colors duration-150 hover:bg-gray-50 cursor-pointer"
-                  onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
+                  className="group transition-colors duration-150 hover:bg-gray-50"
                 >
-                  <td className="px-6 py-4">
+                  <td className="relative px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      className="absolute left-4 top-1/2 -mt-3 h-6 w-6 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      checked={selectedTickets.has(ticket.id)}
+                      onChange={() => toggleTicketSelection(ticket.id)}
+                    />
+                  </td>
+                  <td 
+                    className="px-6 py-4 cursor-pointer"
+                    onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
+                  >
                     <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600">{ticket.title}</div>
                     <div className="text-sm text-gray-500">{ticket.description.substring(0, 100)}...</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td 
+                    className="px-6 py-4 whitespace-nowrap cursor-pointer"
+                    onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
+                  >
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
                       {ticket.status.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td 
+                    className="px-6 py-4 whitespace-nowrap cursor-pointer"
+                    onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
+                  >
                     <PriorityBadge priority={ticket.priority} />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td 
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
+                    onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
+                  >
                     {ticket.assignee?.name || (
                       <span className="text-yellow-600">Unassigned</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td 
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
+                    onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
+                  >
                     {ticket.customer?.name}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td 
+                    className="px-6 py-4 whitespace-nowrap cursor-pointer"
+                    onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
+                  >
                     <TagBadge tag={ticket.tag} />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td 
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
+                    onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
+                  >
                     {new Date(ticket.created_at).toLocaleDateString()}
                   </td>
                 </tr>

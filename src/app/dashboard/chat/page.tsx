@@ -11,6 +11,8 @@ import ConversationFilters, { ConversationFilters as ConversationFiltersType } f
 import { userQueries } from '@/utils/sql/userQueries';
 import { UserSettings } from '@/types/settings';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import SortableHeader from '@/components/table/SortableHeader';
+import ConversationBulkActionsBar from '@/components/chat/ConversationBulkActionsBar';
 
 export default function AdminChatPage() {
   const router = useRouter();
@@ -19,6 +21,11 @@ export default function AdminChatPage() {
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userSettings, setUserSettings] = useState<UserSettings>({});
+  const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
+  const [sortConfig, setSortConfig] = useState<{ field: string; direction: 'asc' | 'desc' }>({
+    field: 'created_at',
+    direction: 'desc'
+  });
   const [filters, setFilters] = useState<ConversationFiltersType>({
     status: [],
     assignee: [],
@@ -109,6 +116,38 @@ export default function AdminChatPage() {
     }
   };
 
+  // Add new functions for selection handling
+  const toggleConversationSelection = (conversationId: string) => {
+    setSelectedConversations(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(conversationId)) {
+        newSet.delete(conversationId);
+      } else {
+        newSet.add(conversationId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedConversations.size === filteredConversations.length) {
+      setSelectedConversations(new Set());
+    } else {
+      setSelectedConversations(new Set(filteredConversations.map(c => c.id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedConversations(new Set());
+  };
+
+  const handleSort = (field: string) => {
+    setSortConfig(current => ({
+      field,
+      direction: current.field === field && current.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
   const filteredConversations = useMemo(() => {
     return conversations.filter(conversation => {
       const matchesStatus = filters.status.length === 0 || filters.status.includes(conversation.status);
@@ -122,6 +161,43 @@ export default function AdminChatPage() {
       return matchesStatus && matchesAssignee && matchesCreated;
     });
   }, [conversations, filters]);
+
+  const sortedConversations = useMemo(() => {
+    return [...filteredConversations].sort((a, b) => {
+      const direction = sortConfig.direction === 'asc' ? 1 : -1;
+      switch (sortConfig.field) {
+        case 'subject':
+          return direction * a.subject.localeCompare(b.subject);
+        case 'status':
+          return direction * a.status.localeCompare(b.status);
+        case 'assigned_to':
+          const aName = a.assignee?.name || '';
+          const bName = b.assignee?.name || '';
+          return direction * aName.localeCompare(bName);
+        case 'created_by':
+          const aCreatedBy = a.created_by_user?.name || '';
+          const bCreatedBy = b.created_by_user?.name || '';
+          return direction * aCreatedBy.localeCompare(bCreatedBy);
+        case 'created_at':
+          return direction * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        default:
+          return 0;
+      }
+    });
+  }, [filteredConversations, sortConfig]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'open':
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'closed':
+        return 'bg-green-100 text-green-700 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -153,7 +229,28 @@ export default function AdminChatPage() {
             if (payload.eventType === 'DELETE') {
               setConversations(current => current.filter(conv => conv.id !== payload.old.id));
             } else {
-              await loadData();
+              // Fetch the complete conversation data with joined fields
+              const { data: updatedData } = await supabase
+                .from('conversations')
+                .select(`
+                  *,
+                  assignee:users!conversations_assigned_to_fkey (
+                    name
+                  ),
+                  created_by_user:users!conversations_created_by_fkey (
+                    name
+                  )
+                `)
+                .eq('id', payload.new.id)
+                .single();
+
+              if (updatedData) {
+                setConversations(current =>
+                  current.map(conv =>
+                    conv.id === updatedData.id ? updatedData : conv
+                  )
+                );
+              }
             }
           }
         )
@@ -163,20 +260,22 @@ export default function AdminChatPage() {
         channel.unsubscribe();
       };
     }
-  }, [organizationId, conversations, loadData]);
+  }, [organizationId]);
 
   if (loading) {
-    return <div className="p-6">Loading conversations...</div>;
+    return <div className="text-center py-12">Loading conversations...</div>;
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="bg-white shadow rounded-lg">
         <div className="p-6 border-b border-gray-200">
-          <h1 className="text-2xl font-bold">Chat Support</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            View and manage all customer support conversations.
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold">Chat Support</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              View and manage all customer support conversations.
+            </p>
+          </div>
         </div>
 
         <div className="border-b border-gray-200">
@@ -185,52 +284,112 @@ export default function AdminChatPage() {
             filters={filters}
             onFiltersChange={handleFiltersChange}
           />
+          {selectedConversations.size > 0 && (
+            <ConversationBulkActionsBar
+              selectedConversations={Array.from(selectedConversations)}
+              onClearSelection={clearSelection}
+            />
+          )}
         </div>
 
         <div className="max-h-[calc(100vh-24rem)] overflow-auto">
-          <div className="divide-y divide-gray-200">
-            {filteredConversations.length === 0 ? (
-              <p className="p-6 text-gray-500">No conversations found.</p>
-            ) : (
-              filteredConversations.map((conversation) => (
-                <div
-                  key={conversation.id}
-                  className="p-6 hover:bg-gray-50 cursor-pointer"
-                  onClick={() => handleConversationClick(conversation.id)}
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                <th scope="col" className="relative px-6 py-3">
+                  <input
+                    type="checkbox"
+                    className="absolute left-4 top-1/2 -mt-3 h-6 w-6 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={selectedConversations.size === sortedConversations.length && sortedConversations.length > 0}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
+                <SortableHeader
+                  label="Subject"
+                  field="subject"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Status"
+                  field="status"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Assignee"
+                  field="assigned_to"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Created By"
+                  field="created_by"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Created"
+                  field="created_at"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                />
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {sortedConversations.map((conversation) => (
+                <tr 
+                  key={conversation.id} 
+                  className="group transition-colors duration-150 hover:bg-gray-50"
                 >
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-medium">{conversation.subject}</h3>
-                    <div className="flex items-center space-x-3">
-                      {!conversation.assigned_to && (
-                        <span className="px-2 py-1 text-xs font-medium rounded-full text-yellow-800 bg-yellow-100">
-                          Unassigned
-                        </span>
-                      )}
-                      {conversation.assigned_to && (
-                        <span className="px-2 py-1 text-xs font-medium rounded-full text-blue-800 bg-blue-100">
-                          {conversation.assignee?.name}
-                        </span>
-                      )}
-                      <span className="px-2 py-1 text-xs font-medium rounded-full capitalize" 
-                        style={{
-                          backgroundColor: conversation.status === 'open' ? '#E5F6FD' : 
-                                        conversation.status === 'in_progress' ? '#FDF6B2' : 
-                                        '#F3F4F6',
-                          color: conversation.status === 'open' ? '#0284C7' : 
-                                 conversation.status === 'in_progress' ? '#92400E' : 
-                                 '#374151'
-                        }}>
-                        {formatStatus(conversation.status)}
-                      </span>
+                  <td className="relative px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      className="absolute left-4 top-1/2 -mt-3 h-6 w-6 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      checked={selectedConversations.has(conversation.id)}
+                      onChange={() => toggleConversationSelection(conversation.id)}
+                    />
+                  </td>
+                  <td 
+                    className="px-6 py-4 cursor-pointer"
+                    onClick={() => handleConversationClick(conversation.id)}
+                  >
+                    <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600">
+                      {conversation.subject}
                     </div>
-                  </div>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Started {new Date(conversation.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
+                  </td>
+                  <td 
+                    className="px-6 py-4 whitespace-nowrap cursor-pointer"
+                    onClick={() => handleConversationClick(conversation.id)}
+                  >
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(conversation.status)}`}>
+                      {formatStatus(conversation.status)}
+                    </span>
+                  </td>
+                  <td 
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
+                    onClick={() => handleConversationClick(conversation.id)}
+                  >
+                    {conversation.assignee?.name || (
+                      <span className="text-yellow-600">Unassigned</span>
+                    )}
+                  </td>
+                  <td 
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
+                    onClick={() => handleConversationClick(conversation.id)}
+                  >
+                    {conversation.created_by_user?.name || 'Unknown'}
+                  </td>
+                  <td 
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer"
+                    onClick={() => handleConversationClick(conversation.id)}
+                  >
+                    {new Date(conversation.created_at).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

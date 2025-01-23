@@ -10,6 +10,9 @@ export type Conversation = {
   assignee?: {
     name: string;
   } | null;
+  created_by_user?: {
+    name: string;
+  } | null;
 };
 
 // Base event type

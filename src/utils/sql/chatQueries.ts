@@ -26,6 +26,9 @@ export const chatQueries = {
         *,
         assignee:users!conversations_assigned_to_fkey (
           name
+        ),
+        created_by_user:users!conversations_created_by_fkey (
+          name
         )
       `)
       .eq('organization_id', organizationId)
@@ -155,6 +158,23 @@ export const chatQueries = {
     }
 
     return await query;
+  },
+
+  // Bulk update functions
+  async bulkUpdateStatus(conversationIds: string[], newStatus: string, userId: string) {
+    return await supabase.rpc('bulk_update_conversation_status', {
+      p_conversation_ids: conversationIds,
+      p_new_status: newStatus,
+      p_user_id: userId
+    });
+  },
+
+  async bulkUpdateAssignment(conversationIds: string[], assigneeId: string, userId: string) {
+    return await supabase.rpc('bulk_update_conversation_assignment', {
+      p_conversation_ids: conversationIds,
+      p_assignee_id: assigneeId === 'unassigned' ? null : assigneeId,
+      p_user_id: userId
+    });
   }
 };
 
