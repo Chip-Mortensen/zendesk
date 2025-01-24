@@ -33,7 +33,7 @@ export default function StatsCard({
           {icon && <div className="text-gray-400">{icon}</div>}
         </div>
         <div className="flex flex-col">
-          <p className="text-3xl font-semibold text-gray-900">
+          <p className="text-2xl font-semibold text-gray-900">
             {value}
           </p>
           {description && (
