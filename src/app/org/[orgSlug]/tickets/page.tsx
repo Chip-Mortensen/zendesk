@@ -295,10 +295,6 @@ export default function CustomerTicketsPage() {
         <CreateTicketModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
-          onTicketCreated={(newTicket: Ticket) => {
-            setIsCreateModalOpen(false);
-            setTickets(current => [newTicket, ...current]);
-          }}
           organizationId={organizationId}
         />
       )}

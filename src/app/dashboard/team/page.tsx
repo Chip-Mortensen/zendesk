@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/utils/supabase';
 import SortableHeader from '@/components/table/SortableHeader';
 import { sendTeamInviteEmail } from '@/utils/email';
+import MemberTagSpecialization from '@/components/team/MemberTagSpecialization';
 
 interface TeamMember {
   user_id: string;
@@ -11,12 +12,14 @@ interface TeamMember {
   email: string;
   role: string;
   created_at: string;
+  specialized_tag: string | null;
 }
 
 interface OrgMemberWithUser {
   user_id: string;
   role: string;
   created_at: string;
+  specialized_tag: string | null;
   users: {
     name: string;
     email: string;
@@ -98,6 +101,7 @@ export default function TeamPage() {
               user_id,
               role,
               created_at,
+              specialized_tag,
               users!inner (
                 name,
                 email
@@ -113,7 +117,8 @@ export default function TeamPage() {
               name: m.users.name,
               email: m.users.email,
               role: m.role,
-              created_at: m.created_at
+              created_at: m.created_at,
+              specialized_tag: m.specialized_tag
             })) || []
           );
         }
@@ -191,6 +196,29 @@ export default function TeamPage() {
       setError(error instanceof Error ? error.message : 'Failed to create invite. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleTagUpdate = async (memberId: string, newTag: string | null) => {
+    try {
+      const { error } = await supabase
+        .from('org_members')
+        .update({ specialized_tag: newTag })
+        .eq('user_id', memberId)
+        .eq('organization_id', organizationId);
+
+      if (error) throw error;
+
+      // Update local state
+      setTeamMembers(current =>
+        current.map(member =>
+          member.user_id === memberId
+            ? { ...member, specialized_tag: newTag }
+            : member
+        )
+      );
+    } catch (error) {
+      console.error('Error updating tag:', error);
     }
   };
 
@@ -273,6 +301,9 @@ export default function TeamPage() {
                   currentSort={sortConfig}
                   onSort={handleSort}
                 />
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tag Specialization
+                </th>
                 <SortableHeader
                   label="Joined"
                   field="created_at"
@@ -283,18 +314,25 @@ export default function TeamPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {sortedTeamMembers.map((member) => (
-                <tr 
-                  key={member.user_id}
-                  className="transition-colors duration-150 hover:bg-gray-50"
-                >
+                <tr key={member.user_id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {member.name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {member.email}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {member.role}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {organizationId && (
+                      <MemberTagSpecialization
+                        memberId={member.user_id}
+                        organizationId={organizationId}
+                        currentTag={member.specialized_tag}
+                        onTagUpdate={handleTagUpdate}
+                      />
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(member.created_at).toLocaleDateString()}

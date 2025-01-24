@@ -67,8 +67,8 @@ export default function Select({
       </button>
 
       {isOpen && !isLoading && (
-        <div className="absolute left-0 z-10 mt-2 min-w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
-          <div className="py-1 max-h-60 overflow-auto">
+        <div className="absolute left-0 z-10 mt-2 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
+          <div className="py-1 max-h-60 overflow-auto flex flex-col">
             {options.map((option) => (
               <button
                 key={option.value}

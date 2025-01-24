@@ -2,12 +2,11 @@
 
 import { useState } from 'react';
 import { supabase } from '@/utils/supabase';
-import { Ticket } from '@/types/tickets';
+import { ticketQueries } from '@/utils/sql/ticketQueries';
 
 interface CreateTicketModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onTicketCreated: (ticket: Ticket) => void;
   organizationId: string;
 }
 
@@ -21,7 +20,7 @@ interface FormErrors {
   description?: string;
 }
 
-export default function CreateTicketModal({ isOpen, onClose, onTicketCreated, organizationId }: CreateTicketModalProps) {
+export default function CreateTicketModal({ isOpen, onClose, organizationId }: CreateTicketModalProps) {
   const [formData, setFormData] = useState<FormData>({
     title: '',
     description: '',
@@ -78,29 +77,19 @@ export default function CreateTicketModal({ isOpen, onClose, onTicketCreated, or
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      const { data: newTicket, error } = await supabase
-        .from('tickets')
-        .insert([
-          {
-            title: formData.title.trim(),
-            description: formData.description.trim(),
-            status: 'open',
-            organization_id: organizationId,
-            created_by: user.id,
-            priority: 'medium',
-          },
-        ])
-        .select()
-        .single();
+      const { error } = await ticketQueries.createTicket(
+        formData.title.trim(),
+        formData.description.trim(),
+        organizationId,
+        user.id
+      );
 
       if (error) throw error;
 
       setFormData({ title: '', description: '' });
-      onTicketCreated(newTicket);
       onClose();
     } catch (error) {
       console.error('Error creating ticket:', error);
-      // You might want to show an error message to the user here
     } finally {
       setLoading(false);
     }

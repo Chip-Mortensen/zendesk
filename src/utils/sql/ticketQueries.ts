@@ -1,6 +1,12 @@
 import { supabase } from '../supabase';
 import { Ticket, TicketEvent, TicketEventWithUser, TicketRatingEvent } from '@/types/tickets';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { suggestAndUpdateTicketTag } from '../ai/tagSuggestion';
+
+export type TicketError = {
+  message: string;
+  details?: unknown;
+};
 
 // Ticket Queries
 export const ticketQueries = {
@@ -36,12 +42,32 @@ export const ticketQueries = {
   },
 
   // Create a new ticket
-  async createTicket(ticket: Omit<Ticket, 'id' | 'created_at'>) {
-    return await supabase
+  async createTicket(
+    title: string,
+    description: string,
+    organizationId: string,
+    createdBy: string
+  ): Promise<{ data: Ticket | null; error: TicketError | null }> {
+    // Create ticket without a tag first
+    const { data, error } = await supabase
       .from('tickets')
-      .insert([ticket])
+      .insert({
+        title,
+        description,
+        organization_id: organizationId,
+        created_by: createdBy,
+        status: 'open',
+        priority: 'medium'
+      })
       .select()
       .single();
+
+    if (error) return { data: null, error: { message: error.message, details: error } };
+
+    // Trigger async tag suggestion
+    await suggestAndUpdateTicketTag(data.id, title, description, organizationId);
+
+    return { data, error: null };
   },
 
   // Update a ticket
@@ -298,7 +324,6 @@ export const ticketQueries = {
 export const eventQueries = {
   // Fetch all events for a ticket
   async getTicketEvents(ticketId: string) {
-    console.log('Fetching events for ticket:', ticketId);
     
     const { data, error } = await supabase
       .from('ticket_events')
@@ -313,7 +338,6 @@ export const eventQueries = {
       .eq('ticket_id', ticketId)
       .order('created_at', { ascending: true });
 
-    console.log('Events fetch result:', { data, error });
     if (error) {
       console.error('Error fetching events:', error);
     } else if (data) {
@@ -327,7 +351,6 @@ export const eventQueries = {
 
   // Create a new event
   async createEvent(event: Omit<TicketEvent, 'id' | 'created_at'>) {
-    console.log('Creating new event:', event);
     
     const result = await supabase
       .from('ticket_events')
@@ -342,7 +365,6 @@ export const eventQueries = {
       `)
       .single();
 
-    console.log('Event creation result:', result);
     if (result.error) {
       console.error('Error creating event:', result.error);
     } else if (result.data) {
@@ -356,7 +378,6 @@ export const eventQueries = {
 export const subscriptionHelpers = {
   // Subscribe to ticket changes
   subscribeToTicket(ticketId: string, callback: (payload: RealtimePostgresChangesPayload<Ticket>) => void) {
-    console.log('Setting up ticket subscription for:', ticketId);
     return supabase
       .channel(`ticket-${ticketId}`)
       .on(
@@ -368,7 +389,6 @@ export const subscriptionHelpers = {
           filter: `id=eq.${ticketId}`
         },
         (payload: RealtimePostgresChangesPayload<Ticket>) => {
-          console.log('Received ticket update:', payload);
           callback(payload);
         }
       )
@@ -391,16 +411,8 @@ export const subscriptionHelpers = {
           filter: `ticket_id=eq.${ticketId}`,
         },
         async (payload) => {
-          console.log('Received event payload:', { 
-            eventType: payload.eventType,
-            table: payload.table,
-            schema: payload.schema,
-            new: payload.new,
-          });
-
           // For INSERT and UPDATE events, fetch the full event data with user info
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            console.log('Fetching full event data for:', payload.new.id);
             const { data, error } = await supabase
               .from('ticket_events')
               .select(`

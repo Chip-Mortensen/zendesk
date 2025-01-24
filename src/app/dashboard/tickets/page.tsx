@@ -175,19 +175,16 @@ export default function TicketsPage() {
         {
           event: '*',
           schema: 'public',
-          table: 'tickets'
+          table: 'tickets',
+          filter: `organization_id=eq.${organizationId}`
         },
         async (payload: RealtimePostgresChangesPayload<{
           id: string;
           [key: string]: unknown;
         }>) => {
-          if (payload.eventType === 'DELETE') {
-            setTickets(currentTickets => 
-              currentTickets.filter(ticket => ticket.id !== payload.old.id)
-            );
-          } else {
-            // Reload all tickets to ensure we have the latest data with all relations
-            const { data: ticketsData, error: ticketsError } = await supabase
+          // Handle ticket changes based on event type
+          if (payload.eventType === 'INSERT') {
+            const { data } = await supabase
               .from('tickets')
               .select(`
                 *,
@@ -198,11 +195,33 @@ export default function TicketsPage() {
                   name
                 )
               `)
-              .eq('organization_id', organizationId)
-              .order('created_at', { ascending: false });
+              .eq('id', payload.new.id)
+              .single();
 
-            if (!ticketsError && ticketsData) {
-              setTickets(ticketsData);
+            if (data) {
+              setTickets(current => [data, ...current]);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            setTickets(current => current.filter(ticket => ticket.id !== payload.old.id));
+          } else if (payload.eventType === 'UPDATE') {
+            const { data } = await supabase
+              .from('tickets')
+              .select(`
+                *,
+                assignee:users!tickets_assigned_to_fkey (
+                  name
+                ),
+                customer:users!tickets_created_by_fkey (
+                  name
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
+
+            if (data) {
+              setTickets(current => 
+                current.map(ticket => ticket.id === data.id ? data : ticket)
+              );
             }
           }
         }
@@ -338,7 +357,7 @@ export default function TicketsPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 sticky top-0">
               <tr>
-                <th scope="col" className="relative px-6 py-3">
+                <th scope="col" className="relative px-3 w-6 py-3">
                   <input
                     type="checkbox"
                     className="absolute left-4 top-1/2 -mt-3 h-6 w-6 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
