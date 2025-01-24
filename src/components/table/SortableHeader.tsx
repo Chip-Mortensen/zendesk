@@ -8,9 +8,10 @@ interface SortableHeaderProps {
     direction: 'asc' | 'desc';
   };
   onSort: (field: string) => void;
+  className?: string;
 }
 
-export default function SortableHeader({ label, field, currentSort, onSort }: SortableHeaderProps) {
+export default function SortableHeader({ label, field, currentSort, onSort, className }: SortableHeaderProps) {
   const isCurrentSort = currentSort.field === field;
 
   const handleClick = (e: React.MouseEvent) => {
@@ -21,7 +22,7 @@ export default function SortableHeader({ label, field, currentSort, onSort }: So
   return (
     <th 
       scope="col" 
-      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 ${className || ''}`}
       onClick={handleClick}
     >
       <div className="flex items-center space-x-1">

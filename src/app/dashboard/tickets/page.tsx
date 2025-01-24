@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import PriorityBadge from '@/components/tickets/PriorityBadge';
 import TagBadge from '@/components/tickets/TagBadge';
-import SortableHeader from '@/components/SortableHeader';
+import SortableHeader from '@/components/table/SortableHeader';
 import { sortTickets } from '@/utils/sorting';
 import TicketFilters, { TicketFilters as TicketFiltersType } from '@/components/tickets/TicketFilters';
 import { isToday, isThisWeek } from 'date-fns';
@@ -368,64 +368,56 @@ export default function TicketsPage() {
                 <SortableHeader
                   label="Title"
                   field="title"
-                  sortField={sortConfig.field}
-                  sortDirection={sortConfig.field === "title" ? sortConfig.direction : null}
+                  currentSort={sortConfig}
                   onSort={handleSort}
                   className="w-1/4"
                 />
                 <SortableHeader
                   label="Status"
                   field="status"
-                  sortField={sortConfig.field}
-                  sortDirection={sortConfig.field === "status" ? sortConfig.direction : null}
+                  currentSort={sortConfig}
                   onSort={handleSort}
                   className="w-24"
                 />
                 <SortableHeader
                   label="Priority"
                   field="priority"
-                  sortField={sortConfig.field}
-                  sortDirection={sortConfig.field === "priority" ? sortConfig.direction : null}
+                  currentSort={sortConfig}
                   onSort={handleSort}
                   className="w-24"
                 />
                 <SortableHeader
                   label="Assignee"
                   field="assignee"
-                  sortField={sortConfig.field}
-                  sortDirection={sortConfig.field === "assignee" ? sortConfig.direction : null}
+                  currentSort={sortConfig}
                   onSort={handleSort}
                   className="w-32"
                 />
                 <SortableHeader
                   label="Customer"
                   field="customer"
-                  sortField={sortConfig.field}
-                  sortDirection={sortConfig.field === "customer" ? sortConfig.direction : null}
+                  currentSort={sortConfig}
                   onSort={handleSort}
                   className="w-32"
                 />
                 <SortableHeader
                   label="Tag"
                   field="tag"
-                  sortField={sortConfig.field}
-                  sortDirection={sortConfig.field === "tag" ? sortConfig.direction : null}
+                  currentSort={sortConfig}
                   onSort={handleSort}
                   className="w-24"
                 />
                 <SortableHeader
                   label="Rating"
                   field="rating"
-                  sortField={sortConfig.field}
-                  sortDirection={sortConfig.field === "rating" ? sortConfig.direction : null}
+                  currentSort={sortConfig}
                   onSort={handleSort}
                   className="w-20"
                 />
                 <SortableHeader
                   label="Created"
                   field="created_at"
-                  sortField={sortConfig.field}
-                  sortDirection={sortConfig.field === "created_at" ? sortConfig.direction : null}
+                  currentSort={sortConfig}
                   onSort={handleSort}
                   className="w-28"
                 />

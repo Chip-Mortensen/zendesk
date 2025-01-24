@@ -35,18 +35,6 @@ export default function RootLayout({
                     </svg>
                     <span className="text-xl font-bold text-gray-900">Zendesk Clone</span>
                   </Link>
-                  
-                  <nav className="hidden md:flex space-x-8">
-                    <Link href="/features" className="text-sm font-medium text-gray-500 hover:text-gray-900">
-                      Features
-                    </Link>
-                    <Link href="/pricing" className="text-sm font-medium text-gray-500 hover:text-gray-900">
-                      Pricing
-                    </Link>
-                    <Link href="/about" className="text-sm font-medium text-gray-500 hover:text-gray-900">
-                      About
-                    </Link>
-                  </nav>
                 </div>
 
                 <div className="flex items-center space-x-3">
@@ -61,6 +49,12 @@ export default function RootLayout({
                     className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
                     Admin Portal
+                  </Link>
+                  <Link
+                    href="/test-auth"
+                    className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                  >
+                    Test Mode
                   </Link>
                 </div>
               </div>

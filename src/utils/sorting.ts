@@ -33,7 +33,7 @@ export interface SortableTicket {
   rating_submitted_at?: string;
 }
 
-type SortableField = keyof SortableTicket | 'created_by';
+type SortableField = keyof SortableTicket | 'created_by' | 'assignee';
 
 export function sortTickets(
   tickets: SortableTicket[],
@@ -69,6 +69,7 @@ export function sortTickets(
           ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
           : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
 
+      case 'assignee':
       case 'assigned_to':
         const aName = a.assignee?.name || '';
         const bName = b.assignee?.name || '';

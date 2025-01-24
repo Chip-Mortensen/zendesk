@@ -321,7 +321,7 @@ export default function TeamPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {member.email}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
                     {member.role}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
