@@ -10,16 +10,13 @@ export async function POST(request: Request) {
   try {
     const { ticketId, title, description, organizationId } = await request.json();
     
-    // Start async processing
-    processSuggestion(ticketId, title, description, organizationId).catch(error => {
-      console.error('Background process error:', error);
-    });
+    // Make it synchronous by awaiting the process
+    await processSuggestion(ticketId, title, description, organizationId);
 
-    // Return immediately
-    return NextResponse.json({ success: true, message: 'Tag suggestion started' });
+    return NextResponse.json({ success: true, message: 'Tag suggestion completed' });
   } catch (error) {
-    console.error('Server: Error initiating tag suggestion:', error);
-    return NextResponse.json({ success: false, error: 'Failed to initiate tag suggestion' }, { status: 500 });
+    console.error('Server: Error in tag suggestion:', error);
+    return NextResponse.json({ success: false, error: 'Failed to process tag suggestion' }, { status: 500 });
   }
 }
 
@@ -64,7 +61,7 @@ Tag:`;
         .eq('id', ticketId);
 
       if (tagError) {
-        console.error('Background: Error updating ticket tag:', tagError);
+        console.error('Error updating ticket tag:', tagError);
         throw tagError;
       }
 
@@ -78,7 +75,7 @@ Tag:`;
       const assigneeId = rpcResponse.data;
 
       if (rpcResponse.error) {
-        console.error('Background: Error finding best assignee:', rpcResponse.error);
+        console.error('Error finding best assignee:', rpcResponse.error);
         throw rpcResponse.error;
       }
 
@@ -90,12 +87,13 @@ Tag:`;
           .eq('id', ticketId);
 
         if (updateError) {
-          console.error('Background: Error updating ticket assignee:', updateError);
+          console.error('Error updating ticket assignee:', updateError);
           throw updateError;
         }
       }
     }
   } catch (error) {
-    console.error('Background: Error in tag suggestion process:', error);
+    console.error('Error in tag suggestion process:', error);
+    throw error; // Re-throw the error to be caught by the main handler
   }
 } 
