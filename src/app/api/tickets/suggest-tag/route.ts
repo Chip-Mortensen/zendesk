@@ -6,17 +6,39 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// Initialize service role client with additional options
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    db: {
+      schema: 'public'
+    },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  }
+);
+
+// Test the client on initialization
+async function testClient() {
+  try {
+    await supabaseAdmin.from('tickets').select('count').limit(1).single();
+    console.log('Service role client initialized successfully');
+  } catch (error) {
+    console.error('Service role client initialization error:', error);
+  }
+}
+
+void testClient();
+
 // Log Supabase configuration
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 console.log('Supabase URL configured:', !!supabaseUrl);
 console.log('Supabase service key configured:', !!supabaseServiceKey);
-
-// Initialize service role client
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 export async function POST(request: Request) {
   console.log('Suggest-tag route called');
