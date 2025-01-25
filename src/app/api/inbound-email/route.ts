@@ -83,6 +83,41 @@ export async function POST(request: Request) {
       throw ticketError;
     }
 
+    // Get the ticket details for the tag suggestion
+    const { data: ticket, error: getTicketError } = await supabase
+      .from('tickets')
+      .select('id, title, description, organization_id')
+      .eq('id', ticketId)
+      .single();
+
+    if (getTicketError) {
+      console.error('Error getting ticket details:', getTicketError);
+      throw getTicketError;
+    }
+
+    // Call the suggest-tag endpoint
+    try {
+      const response = await fetch('https://zendesk-pi.vercel.app/api/tickets/suggest-tag', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticketId: ticket.id,
+          title: ticket.title,
+          description: ticket.description,
+          organizationId: ticket.organization_id
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Error from suggest-tag endpoint:', await response.text());
+      }
+    } catch (suggestTagError) {
+      // Log but don't throw the error - we don't want to fail the email/ticket creation
+      console.error('Error calling suggest-tag endpoint:', suggestTagError);
+    }
+
     return NextResponse.json({ success: true, emailId, ticketId });
   } catch (error) {
     console.error('Webhook processing error:', error);
