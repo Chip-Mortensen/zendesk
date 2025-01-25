@@ -6,10 +6,22 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// Log Supabase configuration
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+console.log('Supabase URL configured:', !!supabaseUrl);
+console.log('Supabase service key configured:', !!supabaseServiceKey);
+
 // Initialize service role client
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  supabaseUrl!,
+  supabaseServiceKey!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
 );
 
 export async function POST(request: Request) {
@@ -70,6 +82,21 @@ export async function POST(request: Request) {
 
 async function processSuggestion(ticketId: string, title: string, description: string, organizationId: string) {
   try {
+    // First verify we can read the ticket
+    console.log('Verifying ticket access...');
+    const { data: ticket, error: ticketError } = await supabaseAdmin
+      .from('tickets')
+      .select('*')
+      .eq('id', ticketId)
+      .single();
+
+    if (ticketError) {
+      console.error('Error accessing ticket:', ticketError);
+      throw ticketError;
+    }
+
+    console.log('Successfully accessed ticket:', ticket);
+
     console.log('Getting existing tags for organization:', organizationId);
     // Get existing tags for the organization using service role client
     const { data: ticketTags, error: tagsError } = await supabaseAdmin
@@ -115,15 +142,19 @@ Tag:`;
     if (suggestedTag === "null" || existingTags.includes(suggestedTag!)) {
       console.log('Updating ticket with tag:', suggestedTag);
       // Update the tag using service role client
-      const { error: tagError } = await supabaseAdmin
+      const { data: updateData, error: tagError } = await supabaseAdmin
         .from('tickets')
         .update({ tag: suggestedTag === "null" ? null : suggestedTag })
-        .eq('id', ticketId);
+        .eq('id', ticketId)
+        .select()
+        .single();
 
       if (tagError) {
         console.error('Error updating ticket tag:', tagError);
         throw tagError;
       }
+
+      console.log('Tag update response:', updateData);
 
       console.log('Looking for best assignee for tag:', suggestedTag);
       // Find the best assignee for this tag using service role client
@@ -144,15 +175,18 @@ Tag:`;
       // Update the ticket with the found assignee using service role client
       if (assigneeId) {
         console.log('Updating ticket with assignee:', assigneeId);
-        const { error: updateError } = await supabaseAdmin
+        const { data: assigneeUpdateData, error: updateError } = await supabaseAdmin
           .from('tickets')
           .update({ assigned_to: assigneeId })
-          .eq('id', ticketId);
+          .eq('id', ticketId)
+          .select()
+          .single();
 
         if (updateError) {
           console.error('Error updating ticket assignee:', updateError);
           throw updateError;
         }
+        console.log('Assignee update response:', assigneeUpdateData);
         console.log('Successfully updated ticket assignee');
       } else {
         console.log('No suitable assignee found');
