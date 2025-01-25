@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
 import { processNotifications } from '@/utils/notifications';
 
-// Edge function configuration
-export const runtime = 'edge';
-export const dynamic = 'force-dynamic';
-
 export async function GET(req: Request) {
   console.log('🔄 Cron job started:', new Date().toISOString());
   
