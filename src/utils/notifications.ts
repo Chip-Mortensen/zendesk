@@ -7,17 +7,17 @@ export async function processNotifications() {
   
   console.log('📬 Fetching pending notifications...');
   
-  // Get pending notifications
+  // Get pending and failed notifications that haven't exceeded retry limit
   const { data: notifications } = await supabase
     .from('notification_queue')
     .select('*')
-    .eq('status', 'pending')
+    .in('status', ['pending', 'failed'])
     .lt('retry_count', 3)
     .order('created_at', { ascending: true })
     .limit(50);
 
   if (!notifications) {
-    console.log('ℹ️ No pending notifications found');
+    console.log('ℹ️ No notifications to process');
     return { success: true, processed: 0 };
   }
 
@@ -28,7 +28,7 @@ export async function processNotifications() {
   // Process each notification
   for (const notification of notifications as NotificationQueue[]) {
     try {
-      console.log(`🔄 Processing notification ${notification.id} for ticket ${notification.ticket_id}`);
+      console.log(`🔄 Processing notification ${notification.id} for ticket ${notification.ticket_id} (Attempt ${notification.retry_count + 1})`);
       
       const response = await fetch(`${process.env.DEPLOYED_URL}/api/send-notification`, {
         method: 'POST',
@@ -41,13 +41,17 @@ export async function processNotifications() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to send notification: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Failed to send notification: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       // Update status to sent
       await supabase
         .from('notification_queue')
-        .update({ status: 'sent' }) 
+        .update({ 
+          status: 'sent',
+          error: null // Clear any previous error
+        }) 
         .eq('id', notification.id);
 
       console.log(`✅ Successfully processed notification ${notification.id}`);
