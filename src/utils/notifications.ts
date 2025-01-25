@@ -47,7 +47,7 @@ export async function processNotifications() {
       // Update status to sent
       await supabase
         .from('notification_queue')
-        .update({ status: 'sent' })
+        .update({ status: 'sent' }) 
         .eq('id', notification.id);
 
       console.log(`✅ Successfully processed notification ${notification.id}`);
