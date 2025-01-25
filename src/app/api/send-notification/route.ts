@@ -52,7 +52,7 @@ export async function POST(request: Request) {
             <blockquote style="border-left: 4px solid #e5e7eb; padding-left: 1rem; margin: 1rem 0;">
               ${eventData.comment_text}
             </blockquote>
-            <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/org/${ticketData.org_slug}/tickets/${ticketId}">View Ticket</a></p>
+            <p><a href="${process.env.DEPLOYED_URL}/org/${ticketData.org_slug}/tickets/${ticketId}">View Ticket</a></p>
           </div>
         `;
         break;
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
             <h2>Status Update for Ticket: ${ticketData.title}</h2>
             <p>${eventData.users.name} has updated the status of your ticket:</p>
             <p>Status changed from <strong>${eventData.old_status}</strong> to <strong>${eventData.new_status}</strong></p>
-            <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/org/${ticketData.org_slug}/tickets/${ticketId}">View Ticket</a></p>
+            <p><a href="${process.env.DEPLOYED_URL}/org/${ticketData.org_slug}/tickets/${ticketId}">View Ticket</a></p>
           </div>
         `;
         break;
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
           <div>
             <h2>Assignment Update for Ticket: ${ticketData.title}</h2>
             <p>Your ticket has been assigned to ${newAssignee?.name || 'a new agent'}</p>
-            <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/org/${ticketData.org_slug}/tickets/${ticketId}">View Ticket</a></p>
+            <p><a href="${process.env.DEPLOYED_URL}/org/${ticketData.org_slug}/tickets/${ticketId}">View Ticket</a></p>
           </div>
         `;
         break;
