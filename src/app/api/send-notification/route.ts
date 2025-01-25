@@ -6,24 +6,46 @@ import { cookies } from 'next/headers';
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
 
 export async function POST(request: Request) {
+  console.log('📨 Send notification route called');
   try {
-    const { userId, ticketId, eventId } = await request.json();
+    const body = await request.json();
+    console.log('📝 Request body:', body);
+    
+    const { userId, ticketId, eventId } = body;
+    console.log('🔍 Extracted values:', { userId, ticketId, eventId });
+    
     const supabase = createRouteHandlerClient({ cookies });
+    console.log('🔌 Supabase client initialized');
 
     // Get user, ticket, and event details
-    const { data: userData } = await supabase
+    console.log('🔄 Fetching user data...');
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('email, name')
       .eq('id', userId)
       .single();
 
-    const { data: ticketData } = await supabase
+    if (userError) {
+      console.error('❌ Error fetching user:', userError);
+      throw userError;
+    }
+    console.log('✅ User data fetched:', userData);
+
+    console.log('🔄 Fetching ticket data...');
+    const { data: ticketData, error: ticketError } = await supabase
       .from('tickets')
       .select('title, description, org_slug')
       .eq('id', ticketId)
       .single();
 
-    const { data: eventData } = await supabase
+    if (ticketError) {
+      console.error('❌ Error fetching ticket:', ticketError);
+      throw ticketError;
+    }
+    console.log('✅ Ticket data fetched:', ticketData);
+
+    console.log('🔄 Fetching event data...');
+    const { data: eventData, error: eventError } = await supabase
       .from('ticket_events')
       .select(`
         *,
@@ -35,11 +57,23 @@ export async function POST(request: Request) {
       .eq('id', eventId)
       .single();
 
+    if (eventError) {
+      console.error('❌ Error fetching event:', eventError);
+      throw eventError;
+    }
+    console.log('✅ Event data fetched:', eventData);
+
     if (!userData || !ticketData || !eventData) {
+      console.error('❌ Missing required data:', {
+        hasUserData: !!userData,
+        hasTicketData: !!ticketData,
+        hasEventData: !!eventData
+      });
       throw new Error('Required data not found');
     }
 
     // Construct email content based on event type
+    console.log('📧 Constructing email for event type:', eventData.event_type);
     const subject = `[Ticket Update] ${ticketData.title}`;
     let html = '';
 
@@ -69,11 +103,18 @@ export async function POST(request: Request) {
         break;
 
       case 'assignment_change':
-        const { data: newAssignee } = await supabase
+        console.log('🔄 Fetching new assignee data...');
+        const { data: newAssignee, error: assigneeError } = await supabase
           .from('users')
           .select('name')
           .eq('id', eventData.new_assignee)
           .single();
+
+        if (assigneeError) {
+          console.error('❌ Error fetching new assignee:', assigneeError);
+          throw assigneeError;
+        }
+        console.log('✅ New assignee data fetched:', newAssignee);
 
         html = `
           <div>
@@ -85,6 +126,7 @@ export async function POST(request: Request) {
         break;
 
       default:
+        console.error('❌ Unsupported event type:', eventData.event_type);
         throw new Error(`Unsupported event type: ${eventData.event_type}`);
     }
 
@@ -95,10 +137,18 @@ export async function POST(request: Request) {
       html
     };
 
+    console.log('📤 Sending email via SendGrid...', {
+      to: userData.email,
+      from: process.env.SENDGRID_FROM_EMAIL,
+      subject
+    });
+
     await sgMail.send(msg);
+    console.log('✅ Email sent successfully');
 
     // Update notification queue status
-    await supabase
+    console.log('🔄 Updating notification queue status...');
+    const { error: updateError } = await supabase
       .from('notification_queue')
       .update({ 
         status: 'sent',
@@ -107,9 +157,22 @@ export async function POST(request: Request) {
       .eq('event_id', eventId)
       .eq('user_id', userId);
 
+    if (updateError) {
+      console.error('❌ Error updating notification queue:', updateError);
+      throw updateError;
+    }
+    console.log('✅ Notification queue updated successfully');
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error sending notification:', error);
+    console.error('❌ Error sending notification:', error);
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
     return NextResponse.json(
       { 
         success: false, 
