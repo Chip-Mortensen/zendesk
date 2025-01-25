@@ -14,14 +14,8 @@ console.log('Supabase service key configured:', !!supabaseServiceKey);
 
 // Initialize service role client
 const supabaseAdmin = createClient(
-  supabaseUrl!,
-  supabaseServiceKey!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(request: Request) {
@@ -62,19 +56,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, message: 'Tag suggestion completed' });
   } catch (error) {
     console.error('Server: Error in tag suggestion:', error);
-    // Log more details about the error
-    if (error instanceof Error) {
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-    }
     return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to process tag suggestion'
-      },
+      { success: false, error: 'Failed to process tag suggestion' },
       { status: 500 }
     );
   }
@@ -82,21 +65,6 @@ export async function POST(request: Request) {
 
 async function processSuggestion(ticketId: string, title: string, description: string, organizationId: string) {
   try {
-    // First verify we can read the ticket
-    console.log('Verifying ticket access...');
-    const { data: ticket, error: ticketError } = await supabaseAdmin
-      .from('tickets')
-      .select('*')
-      .eq('id', ticketId)
-      .single();
-
-    if (ticketError) {
-      console.error('Error accessing ticket:', ticketError);
-      throw ticketError;
-    }
-
-    console.log('Successfully accessed ticket:', ticket);
-
     console.log('Getting existing tags for organization:', organizationId);
     // Get existing tags for the organization using service role client
     const { data: ticketTags, error: tagsError } = await supabaseAdmin
@@ -142,19 +110,15 @@ Tag:`;
     if (suggestedTag === "null" || existingTags.includes(suggestedTag!)) {
       console.log('Updating ticket with tag:', suggestedTag);
       // Update the tag using service role client
-      const { data: updateData, error: tagError } = await supabaseAdmin
+      const { error: tagError } = await supabaseAdmin
         .from('tickets')
         .update({ tag: suggestedTag === "null" ? null : suggestedTag })
-        .eq('id', ticketId)
-        .select()
-        .single();
+        .eq('id', ticketId);
 
       if (tagError) {
         console.error('Error updating ticket tag:', tagError);
         throw tagError;
       }
-
-      console.log('Tag update response:', updateData);
 
       console.log('Looking for best assignee for tag:', suggestedTag);
       // Find the best assignee for this tag using service role client
@@ -175,18 +139,15 @@ Tag:`;
       // Update the ticket with the found assignee using service role client
       if (assigneeId) {
         console.log('Updating ticket with assignee:', assigneeId);
-        const { data: assigneeUpdateData, error: updateError } = await supabaseAdmin
+        const { error: updateError } = await supabaseAdmin
           .from('tickets')
           .update({ assigned_to: assigneeId })
-          .eq('id', ticketId)
-          .select()
-          .single();
+          .eq('id', ticketId);
 
         if (updateError) {
           console.error('Error updating ticket assignee:', updateError);
           throw updateError;
         }
-        console.log('Assignee update response:', assigneeUpdateData);
         console.log('Successfully updated ticket assignee');
       } else {
         console.log('No suitable assignee found');
@@ -199,13 +160,6 @@ Tag:`;
     }
   } catch (error) {
     console.error('Error in tag suggestion process:', error);
-    if (error instanceof Error) {
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-    }
     throw error; // Re-throw the error to be caught by the main handler
   }
 } 
