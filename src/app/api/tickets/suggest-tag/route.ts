@@ -1,10 +1,16 @@
 import OpenAI from 'openai';
-import { supabase } from '@/utils/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
+
+// Initialize service role client
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(request: Request) {
   console.log('Suggest-tag route called');
@@ -65,8 +71,8 @@ export async function POST(request: Request) {
 async function processSuggestion(ticketId: string, title: string, description: string, organizationId: string) {
   try {
     console.log('Getting existing tags for organization:', organizationId);
-    // Get existing tags for the organization
-    const { data: ticketTags, error: tagsError } = await supabase
+    // Get existing tags for the organization using service role client
+    const { data: ticketTags, error: tagsError } = await supabaseAdmin
       .from('tickets')
       .select('tag')
       .eq('organization_id', organizationId)
@@ -108,8 +114,8 @@ Tag:`;
     // Only update if the suggested tag exists in our list or is null
     if (suggestedTag === "null" || existingTags.includes(suggestedTag!)) {
       console.log('Updating ticket with tag:', suggestedTag);
-      // First update the tag
-      const { error: tagError } = await supabase
+      // Update the tag using service role client
+      const { error: tagError } = await supabaseAdmin
         .from('tickets')
         .update({ tag: suggestedTag === "null" ? null : suggestedTag })
         .eq('id', ticketId);
@@ -120,8 +126,8 @@ Tag:`;
       }
 
       console.log('Looking for best assignee for tag:', suggestedTag);
-      // Find the best assignee for this tag
-      const rpcResponse = await supabase.rpc('find_best_assignee', {
+      // Find the best assignee for this tag using service role client
+      const rpcResponse = await supabaseAdmin.rpc('find_best_assignee', {
         p_organization_id: organizationId,
         p_tag: suggestedTag === "null" ? null : suggestedTag
       });
@@ -135,10 +141,10 @@ Tag:`;
       const assigneeId = rpcResponse.data;
       console.log('Found best assignee:', assigneeId);
 
-      // Update the ticket with the found assignee
+      // Update the ticket with the found assignee using service role client
       if (assigneeId) {
         console.log('Updating ticket with assignee:', assigneeId);
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseAdmin
           .from('tickets')
           .update({ assigned_to: assigneeId })
           .eq('id', ticketId);
