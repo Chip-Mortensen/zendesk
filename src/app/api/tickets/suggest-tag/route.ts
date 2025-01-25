@@ -87,6 +87,18 @@ export async function POST(request: Request) {
 
 async function processSuggestion(ticketId: string, title: string, description: string, organizationId: string) {
   try {
+    // First verify the ticket exists and log its current state
+    const { data: currentTicket, error: verifyError } = await supabaseAdmin
+      .from('tickets')
+      .select('*')
+      .eq('id', ticketId)
+      .single();
+    
+    console.log('Current ticket state:', currentTicket);
+    if (verifyError) {
+      console.error('Error verifying ticket:', verifyError);
+    }
+
     console.log('Getting existing tags for organization:', organizationId);
     // Get existing tags for the organization using service role client
     const { data: ticketTags, error: tagsError } = await supabaseAdmin
@@ -132,15 +144,28 @@ Tag:`;
     if (suggestedTag === "null" || existingTags.includes(suggestedTag!)) {
       console.log('Updating ticket with tag:', suggestedTag);
       // Update the tag using service role client
-      const { error: tagError } = await supabaseAdmin
+      const { data: tagUpdateData, error: tagError } = await supabaseAdmin
         .from('tickets')
         .update({ tag: suggestedTag === "null" ? null : suggestedTag })
-        .eq('id', ticketId);
+        .eq('id', ticketId)
+        .select()
+        .single();
+
+      console.log('Tag update response:', { data: tagUpdateData, error: tagError });
 
       if (tagError) {
         console.error('Error updating ticket tag:', tagError);
         throw tagError;
       }
+
+      // Verify the tag was updated
+      const { data: verifyTag } = await supabaseAdmin
+        .from('tickets')
+        .select('tag')
+        .eq('id', ticketId)
+        .single();
+      
+      console.log('Verified tag after update:', verifyTag);
 
       console.log('Looking for best assignee for tag:', suggestedTag);
       // Find the best assignee for this tag using service role client
@@ -161,15 +186,28 @@ Tag:`;
       // Update the ticket with the found assignee using service role client
       if (assigneeId) {
         console.log('Updating ticket with assignee:', assigneeId);
-        const { error: updateError } = await supabaseAdmin
+        const { data: assigneeUpdateData, error: updateError } = await supabaseAdmin
           .from('tickets')
           .update({ assigned_to: assigneeId })
-          .eq('id', ticketId);
+          .eq('id', ticketId)
+          .select()
+          .single();
+
+        console.log('Assignee update response:', { data: assigneeUpdateData, error: updateError });
 
         if (updateError) {
           console.error('Error updating ticket assignee:', updateError);
           throw updateError;
         }
+
+        // Verify the assignee was updated
+        const { data: verifyAssignee } = await supabaseAdmin
+          .from('tickets')
+          .select('assigned_to')
+          .eq('id', ticketId)
+          .single();
+        
+        console.log('Verified assignee after update:', verifyAssignee);
         console.log('Successfully updated ticket assignee');
       } else {
         console.log('No suitable assignee found');
