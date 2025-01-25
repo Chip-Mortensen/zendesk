@@ -40,6 +40,25 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 console.log('Supabase URL configured:', !!supabaseUrl);
 console.log('Supabase service key configured:', !!supabaseServiceKey);
 
+async function waitForTicket(ticketId: string, maxAttempts = 3): Promise<boolean> {
+  for (let i = 0; i < maxAttempts; i++) {
+    console.log(`Attempt ${i + 1} of ${maxAttempts} to verify ticket...`);
+    const { data, error } = await supabaseAdmin
+      .from('tickets')
+      .select('*')
+      .eq('id', ticketId);
+    
+    if (!error && data && data.length > 0) {
+      console.log('Ticket found:', data[0]);
+      return true;
+    }
+    
+    console.log('Ticket not found yet, waiting 1 second...');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  return false;
+}
+
 export async function POST(request: Request) {
   console.log('Suggest-tag route called');
   try {
@@ -87,16 +106,12 @@ export async function POST(request: Request) {
 
 async function processSuggestion(ticketId: string, title: string, description: string, organizationId: string) {
   try {
-    // First verify the ticket exists and log its current state
-    const { data: currentTicket, error: verifyError } = await supabaseAdmin
-      .from('tickets')
-      .select('*')
-      .eq('id', ticketId)
-      .single();
+    // Wait for ticket to be available
+    console.log('Waiting for ticket to be available...');
+    const ticketExists = await waitForTicket(ticketId);
     
-    console.log('Current ticket state:', currentTicket);
-    if (verifyError) {
-      console.error('Error verifying ticket:', verifyError);
+    if (!ticketExists) {
+      throw new Error('Ticket not found after multiple attempts');
     }
 
     console.log('Getting existing tags for organization:', organizationId);
@@ -143,29 +158,32 @@ Tag:`;
     // Only update if the suggested tag exists in our list or is null
     if (suggestedTag === "null" || existingTags.includes(suggestedTag!)) {
       console.log('Updating ticket with tag:', suggestedTag);
-      // Update the tag using service role client
-      const { data: tagUpdateData, error: tagError } = await supabaseAdmin
+      
+      // First try just the update without select
+      const { error: updateOnlyError } = await supabaseAdmin
         .from('tickets')
         .update({ tag: suggestedTag === "null" ? null : suggestedTag })
-        .eq('id', ticketId)
-        .select()
-        .single();
+        .eq('id', ticketId);
 
-      console.log('Tag update response:', { data: tagUpdateData, error: tagError });
-
-      if (tagError) {
-        console.error('Error updating ticket tag:', tagError);
-        throw tagError;
+      if (updateOnlyError) {
+        console.error('Error on update-only operation:', updateOnlyError);
+        throw updateOnlyError;
       }
 
-      // Verify the tag was updated
-      const { data: verifyTag } = await supabaseAdmin
+      // Now verify the update worked
+      console.log('Verifying update...');
+      const { data: verifyUpdate, error: verifyError } = await supabaseAdmin
         .from('tickets')
-        .select('tag')
+        .select('*')
         .eq('id', ticketId)
         .single();
-      
-      console.log('Verified tag after update:', verifyTag);
+
+      if (verifyError) {
+        console.error('Error verifying update:', verifyError);
+        throw verifyError;
+      }
+
+      console.log('Ticket state after update:', verifyUpdate);
 
       console.log('Looking for best assignee for tag:', suggestedTag);
       // Find the best assignee for this tag using service role client
@@ -220,6 +238,14 @@ Tag:`;
     }
   } catch (error) {
     console.error('Error in tag suggestion process:', error);
-    throw error; // Re-throw the error to be caught by the main handler
+    // Add more context to the error
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
+    throw error;
   }
 } 
