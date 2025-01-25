@@ -2,14 +2,16 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-interface InboundEmailFormData {
-  from: string;
-  to: string;
+interface FormDataObject {
+  from?: string;
+  to?: string;
   subject?: string;
   text?: string;
   html?: string;
   envelope?: string;
-  [key: string]: FormDataEntryValue | undefined;
+  attachments?: string;
+  headers?: string;
+  [key: string]: string | undefined;
 }
 
 export async function POST(request: Request) {
@@ -26,23 +28,16 @@ export async function POST(request: Request) {
     // Get the form data
     const formData = await request.formData();
     
-    // Initialize with required properties
-    const formDataObj: InboundEmailFormData = {
-      from: formData.get('from') as string,
-      to: formData.get('to') as string,
-    };
-    
-    // Add all other form data entries
+    // Log all form data keys and values
+    const formDataObj: FormDataObject = {};
     for (const [key, value] of formData.entries()) {
-      if (key !== 'from' && key !== 'to') {
-        formDataObj[key] = value;
-      }
+      formDataObj[key] = value.toString();
     }
     console.log('Complete form data:', JSON.stringify(formDataObj, null, 2));
 
     // Extract email data from form data
-    const from = formDataObj.from;
-    const to = formDataObj.to.replace(/^"[^"]*"\s*/, '').replace(/[<>]/g, '').trim();
+    const from = formData.get('from') as string;
+    const to = (formData.get('to') as string)?.replace(/^"[^"]*"\s*/, '').replace(/[<>]/g, '').trim();
     const subject = formData.get('subject') as string;
     const text = formData.get('text') as string;
     const html = formData.get('html') as string;
@@ -61,8 +56,8 @@ export async function POST(request: Request) {
     // Initialize Supabase client
     const supabase = createRouteHandlerClient({ cookies });
 
-    // Call the database function to insert the email
-    const { data, error } = await supabase.rpc('insert_inbound_email', {
+    // First, insert the email
+    const { data: emailId, error: emailError } = await supabase.rpc('insert_inbound_email', {
       from_email: from,
       to_email: to,
       subject: subject || '',
@@ -73,12 +68,22 @@ export async function POST(request: Request) {
       envelope: envelope || '{}'
     });
 
-    if (error) {
-      console.error('Error inserting email:', error);
-      throw error;
+    if (emailError) {
+      console.error('Error inserting email:', emailError);
+      throw emailError;
     }
 
-    return NextResponse.json({ success: true, id: data });
+    // Then create the ticket from the email
+    const { data: ticketId, error: ticketError } = await supabase.rpc('create_ticket_from_inbound_email', {
+      p_email_id: emailId
+    });
+
+    if (ticketError) {
+      console.error('Error creating ticket:', ticketError);
+      throw ticketError;
+    }
+
+    return NextResponse.json({ success: true, emailId, ticketId });
   } catch (error) {
     console.error('Webhook processing error:', error);
     return NextResponse.json(
