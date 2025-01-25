@@ -39,9 +39,12 @@ export async function POST(request: Request) {
     const from = formData.get('from') as string;
     const to = (formData.get('to') as string)?.replace(/^"[^"]*"\s*/, '').replace(/[<>]/g, '').trim();
     const subject = formData.get('subject') as string;
-    const text = formData.get('text') as string;
+    const rawText = formData.get('text') as string;
     const html = formData.get('html') as string;
     const envelope = formData.get('envelope') as string;
+    
+    // Clean the email content by removing quoted text and metadata
+    const text = cleanEmailContent(rawText);
     
     // Log the parsed data
     console.log('Parsed email data:', {
@@ -49,7 +52,8 @@ export async function POST(request: Request) {
       to,
       subject,
       envelope,
-      text: text?.substring(0, 100) + '...',  // Log just the start of the content
+      rawText: rawText?.substring(0, 100) + '...',  // Log just the start of the raw content
+      cleanedText: text?.substring(0, 100) + '...',  // Log just the start of the cleaned content
       html: html?.substring(0, 100) + '...'
     });
 
@@ -61,7 +65,7 @@ export async function POST(request: Request) {
       from_email: from,
       to_email: to,
       subject: subject || '',
-      text_content: text || '',
+      text_content: text || '',  // Use the cleaned text
       html_content: html || '',
       attachments: '[]',  // We'll handle attachments later
       headers: JSON.stringify(headers),
@@ -128,4 +132,49 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+function cleanEmailContent(text: string): string {
+  if (!text) return '';
+
+  // Split the text into lines
+  const lines = text.split('\n');
+  const cleanedLines: string[] = [];
+
+  // Common email reply patterns
+  const replyPatterns = [
+    /^On .* wrote:$/,           // "On [date], [someone] wrote:"
+    /^>./,                      // Quoted text starting with >
+    /-{3,}/,                   // Horizontal rules (---)
+    /_{3,}/,                   // Horizontal rules (___)
+    /^Sent from/i,             // Mobile signatures
+    /^From:/i,                 // Forwarded message headers
+    /^To:/i,
+    /^Subject:/i,
+    /^Date:/i,
+    /^Reply-To:/i,
+    /^CC:/i
+  ];
+
+  let foundReplyMarker = false;
+
+  // Process each line
+  for (const line of lines) {
+    // Check if we've hit a reply marker
+    if (replyPatterns.some(pattern => pattern.test(line.trim()))) {
+      foundReplyMarker = true;
+      break;
+    }
+
+    // If we haven't hit a reply marker, keep the line
+    if (!foundReplyMarker) {
+      cleanedLines.push(line);
+    }
+  }
+
+  // Join the lines back together and clean up whitespace
+  return cleanedLines
+    .join('\n')
+    .trim()
+    .replace(/\n{3,}/g, '\n\n'); // Replace multiple blank lines with just two
 } 
