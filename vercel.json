@@ -2,5 +2,11 @@
   "version": 2,
   "buildCommand": "next build",
   "devCommand": "next dev",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "0 * * * *"
+    }
+  ]
 }
