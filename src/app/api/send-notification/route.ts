@@ -3,181 +3,117 @@ import sgMail from '@sendgrid/mail';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
-export async function POST(request: Request) {
-  console.log('📨 Send notification route called');
+export async function POST(req: Request) {
+  console.log('🔄 Processing notification request');
+  const supabaseAdmin = createRouteHandlerClient({ cookies }, { 
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  });
+
   try {
-    const body = await request.json();
-    console.log('📝 Request body:', body);
-    
-    const { userId, ticketId, eventId } = body;
-    console.log('🔍 Extracted values:', { userId, ticketId, eventId });
-    
-    const supabase = createRouteHandlerClient({ cookies });
-    console.log('🔌 Supabase client initialized');
+    const { ticketId, userId, eventId } = await req.json();
+    console.log('📝 Request data:', { ticketId, userId, eventId });
 
-    // Get user, ticket, and event details
-    console.log('🔄 Fetching user data...');
-    const { data: userData, error: userError } = await supabase
+    // Get user data using the same pattern as in ticketQueries
+    const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
-      .select('email, name')
+      .select(`
+        id,
+        name,
+        email
+      `)
       .eq('id', userId)
       .single();
 
-    if (userError) {
+    if (userError || !userData) {
       console.error('❌ Error fetching user:', userError);
-      throw userError;
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-    console.log('✅ User data fetched:', userData);
 
-    console.log('🔄 Fetching ticket data...');
-    const { data: ticketData, error: ticketError } = await supabase
+    // Get ticket data with organization info using the same pattern as in ticketQueries
+    const { data: ticket, error: ticketError } = await supabaseAdmin
       .from('tickets')
-      .select('title, description, org_slug')
+      .select(`
+        *,
+        organization:organization_id (
+          slug
+        )
+      `)
       .eq('id', ticketId)
       .single();
 
-    if (ticketError) {
+    if (ticketError || !ticket) {
       console.error('❌ Error fetching ticket:', ticketError);
-      throw ticketError;
+      return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
     }
-    console.log('✅ Ticket data fetched:', ticketData);
 
-    console.log('🔄 Fetching event data...');
-    const { data: eventData, error: eventError } = await supabase
+    // Get event data
+    const { data: event, error: eventError } = await supabaseAdmin
       .from('ticket_events')
-      .select(`
-        *,
-        users!inner (
-          name,
-          email
-        )
-      `)
+      .select('*')
       .eq('id', eventId)
       .single();
 
-    if (eventError) {
+    if (eventError || !event) {
       console.error('❌ Error fetching event:', eventError);
-      throw eventError;
-    }
-    console.log('✅ Event data fetched:', eventData);
-
-    if (!userData || !ticketData || !eventData) {
-      console.error('❌ Missing required data:', {
-        hasUserData: !!userData,
-        hasTicketData: !!ticketData,
-        hasEventData: !!eventData
-      });
-      throw new Error('Required data not found');
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
 
     // Construct email content based on event type
-    console.log('📧 Constructing email for event type:', eventData.event_type);
-    const subject = `[Ticket Update] ${ticketData.title}`;
-    let html = '';
+    let subject = '';
+    let text = '';
 
-    switch (eventData.event_type) {
+    switch (event.event_type) {
       case 'comment':
-        html = `
-          <div>
-            <h2>New Comment on Ticket: ${ticketData.title}</h2>
-            <p>A new comment has been added to your ticket by ${eventData.users.name}:</p>
-            <blockquote style="border-left: 4px solid #e5e7eb; padding-left: 1rem; margin: 1rem 0;">
-              ${eventData.comment_text}
-            </blockquote>
-            <p><a href="${process.env.DEPLOYED_URL}/org/${ticketData.org_slug}/tickets/${ticketId}">View Ticket</a></p>
-          </div>
-        `;
+        subject = `New comment on ticket: ${ticket.title}`;
+        text = `A new comment has been added to your ticket:\n\n${event.comment_text}`;
         break;
-
       case 'status_change':
-        html = `
-          <div>
-            <h2>Status Update for Ticket: ${ticketData.title}</h2>
-            <p>${eventData.users.name} has updated the status of your ticket:</p>
-            <p>Status changed from <strong>${eventData.old_status}</strong> to <strong>${eventData.new_status}</strong></p>
-            <p><a href="${process.env.DEPLOYED_URL}/org/${ticketData.org_slug}/tickets/${ticketId}">View Ticket</a></p>
-          </div>
-        `;
+        subject = `Status update on ticket: ${ticket.title}`;
+        text = `The status of your ticket has been changed from ${event.old_status} to ${event.new_status}`;
         break;
-
       case 'assignment_change':
-        console.log('🔄 Fetching new assignee data...');
-        const { data: newAssignee, error: assigneeError } = await supabase
-          .from('users')
-          .select('name')
-          .eq('id', eventData.new_assignee)
-          .single();
-
-        if (assigneeError) {
-          console.error('❌ Error fetching new assignee:', assigneeError);
-          throw assigneeError;
-        }
-        console.log('✅ New assignee data fetched:', newAssignee);
-
-        html = `
-          <div>
-            <h2>Assignment Update for Ticket: ${ticketData.title}</h2>
-            <p>Your ticket has been assigned to ${newAssignee?.name || 'a new agent'}</p>
-            <p><a href="${process.env.DEPLOYED_URL}/org/${ticketData.org_slug}/tickets/${ticketId}">View Ticket</a></p>
-          </div>
-        `;
+        subject = `Assignment update on ticket: ${ticket.title}`;
+        text = `Your ticket has been assigned to a new team member`;
         break;
-
       default:
-        console.error('❌ Unsupported event type:', eventData.event_type);
-        throw new Error(`Unsupported event type: ${eventData.event_type}`);
+        console.log('⚠️ Unsupported event type:', event.event_type);
+        return NextResponse.json({ error: 'Unsupported event type' }, { status: 400 });
     }
 
+    // Send email
     const msg = {
       to: userData.email,
-      from: process.env.SENDGRID_FROM_EMAIL || '',
+      from: 'support@chipmortensen.com',
       subject,
-      html
+      text,
+      html: text.replace(/\n/g, '<br>'),
     };
 
-    console.log('📤 Sending email via SendGrid...', {
-      to: userData.email,
-      from: process.env.SENDGRID_FROM_EMAIL,
-      subject
-    });
-
+    console.log('📧 Sending email:', msg);
     await sgMail.send(msg);
-    console.log('✅ Email sent successfully');
 
     // Update notification queue status
-    console.log('🔄 Updating notification queue status...');
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from('notification_queue')
-      .update({ 
-        status: 'sent',
-        processed_at: new Date().toISOString()
-      })
+      .update({ status: 'sent' })
       .eq('event_id', eventId)
       .eq('user_id', userId);
 
     if (updateError) {
-      console.error('❌ Error updating notification queue:', updateError);
-      throw updateError;
+      console.error('❌ Error updating notification status:', updateError);
+      return NextResponse.json({ error: 'Failed to update notification status' }, { status: 500 });
     }
-    console.log('✅ Notification queue updated successfully');
 
+    console.log('✅ Notification sent successfully');
     return NextResponse.json({ success: true });
+
   } catch (error) {
-    console.error('❌ Error sending notification:', error);
-    if (error instanceof Error) {
-      console.error('Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
-    }
+    console.error('❌ Error processing notification:', error);
     return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to send notification'
-      },
+      { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
