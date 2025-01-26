@@ -59,6 +59,10 @@ export async function POST(request: Request) {
 
     // Initialize Supabase client
     const supabase = createRouteHandlerClient({ cookies });
+    const supabaseAdmin = createRouteHandlerClient({ cookies }, { 
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    });
 
     // First, insert the email
     const { data: emailId, error: emailError } = await supabase.rpc('insert_inbound_email', {
@@ -78,7 +82,7 @@ export async function POST(request: Request) {
     }
 
     // Check if the sender exists in our system
-    const { data: user, error: userError } = await supabase
+    const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .select('id')
       .eq('email', from)
