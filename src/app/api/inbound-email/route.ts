@@ -77,17 +77,81 @@ export async function POST(request: Request) {
       throw emailError;
     }
 
-    // Then create the ticket from the email
-    const { data: ticketId, error: ticketError } = await supabase.rpc('create_ticket_from_inbound_email', {
-      p_email_id: emailId
-    });
+    // Check if the sender exists in our system
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', from)
+      .single();
+
+    if (userError || !user) {
+      console.log('User does not exist:', from);
+      // TODO: Send an email to inform them they need to create an account
+      return NextResponse.json({ 
+        success: false, 
+        message: 'User does not exist' 
+      });
+    }
+
+    // Check if this is a reply to an existing ticket
+    const ticketIdMatch = subject.match(/\[Ticket #([0-9a-f-]{36})\]/);
+    if (ticketIdMatch) {
+      const ticketId = ticketIdMatch[1];
+      
+      // Verify the ticket exists
+      const { data: ticket, error: ticketError } = await supabase
+        .from('tickets')
+        .select('id')
+        .eq('id', ticketId)
+        .single();
+
+      if (ticketError || !ticket) {
+        console.error('Referenced ticket not found:', ticketId);
+        // TODO: Send an email to inform them the ticket wasn't found
+        return NextResponse.json({ 
+          success: false, 
+          message: 'Referenced ticket not found' 
+        });
+      }
+
+      // Add comment to existing ticket
+      const { error: commentError } = await supabase.rpc(
+        'add_email_comment_to_ticket',
+        {
+          p_ticket_id: ticketId,
+          p_user_id: user.id,
+          p_text_content: text
+        }
+      );
+
+      if (commentError) {
+        console.error('Error adding comment:', commentError);
+        throw commentError;
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        emailId,
+        ticketId,
+        action: 'comment_added'
+      });
+    }
+
+    // Create new ticket
+    const { data: ticketId, error: ticketError } = await supabase.rpc(
+      'create_ticket_from_email',
+      {
+        p_email_id: emailId,
+        p_user_id: user.id
+      }
+    );
 
     if (ticketError) {
       console.error('Error creating ticket:', ticketError);
       throw ticketError;
     }
 
-    // Get the ticket details for the tag suggestion
+    // Get the ticket details for tag suggestion
     const { data: ticket, error: getTicketError } = await supabase
       .from('tickets')
       .select('id, title, description, organization_id')
@@ -122,7 +186,12 @@ export async function POST(request: Request) {
       console.error('Error calling suggest-tag endpoint:', suggestTagError);
     }
 
-    return NextResponse.json({ success: true, emailId, ticketId });
+    return NextResponse.json({ 
+      success: true, 
+      emailId, 
+      ticketId,
+      action: 'ticket_created'
+    });
   } catch (error) {
     console.error('Webhook processing error:', error);
     return NextResponse.json(
