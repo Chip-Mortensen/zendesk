@@ -67,15 +67,15 @@ export async function POST(req: Request) {
 
     switch (event.event_type) {
       case 'comment':
-        subject = `[Ticket #${ticket.id}] New comment on: ${ticket.title}`;
+        subject = `[Ticket #${ticket.id}] ${ticket.title}`;
         text = `A new comment has been added to your ticket:\n\n${event.comment_text}`;
         break;
       case 'status_change':
-        subject = `[Ticket #${ticket.id}] Status update on: ${ticket.title}`;
+        subject = `[Ticket #${ticket.id}] ${ticket.title}`;
         text = `The status of your ticket has been changed from ${event.old_status} to ${event.new_status}`;
         break;
       case 'assignment_change':
-        subject = `[Ticket #${ticket.id}] Assignment update on: ${ticket.title}`;
+        subject = `[Ticket #${ticket.id}] ${ticket.title}`;
         text = `Your ticket has been assigned to a new team member`;
         break;
       default:
