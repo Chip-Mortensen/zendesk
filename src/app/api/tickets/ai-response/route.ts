@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { ChatOpenAI } from '@langchain/openai'
+import { OpenAIEmbeddings } from '@langchain/openai'
 import { LangChainTracer } from 'langchain/callbacks'
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages'
 
@@ -14,9 +15,33 @@ const model = new ChatOpenAI({
   openAIApiKey: process.env.OPENAI_API_KEY
 })
 
+const embeddings = new OpenAIEmbeddings({
+  modelName: "text-embedding-3-small",
+  openAIApiKey: process.env.OPENAI_API_KEY
+})
+
 const tracer = new LangChainTracer({
   projectName: process.env.LANGCHAIN_PROJECT
 })
+
+interface KBArticle {
+  id: string;
+  title: string;
+  content: string;
+  embedding: number[];
+}
+
+async function searchKBArticles(comment: string): Promise<KBArticle[]> {
+  const vector = await embeddings.embedQuery(comment)
+  
+  const { data: articles } = await supabase.rpc('match_kb_articles', {
+    query_embedding: vector,
+    match_threshold: 0.5,
+    match_count: 10
+  })
+  
+  return articles || []
+}
 
 export async function POST(request: Request) {
   try {
@@ -81,8 +106,25 @@ export async function POST(request: Request) {
       return eventDescription ? [new SystemMessage(eventDescription)] : []
     }) || []
 
+    // Search for relevant KB articles
+    const relevantArticles = await searchKBArticles(event.comment_text)
+    
+    // Add KB context as a system message if we found any relevant articles
+    const allMessages = relevantArticles.length > 0 
+      ? [
+          new SystemMessage(
+            "Relevant knowledge base articles:\n\n" +
+            relevantArticles.map(article => 
+              `Title: ${article.title}\n${article.content}\n---`
+            ).join("\n") +
+            "\n\nPlease use this knowledge base information to help inform your response."
+          ),
+          ...messages
+        ]
+      : messages
+
     // Get AI response using LangChain
-    const response = await model.invoke(messages, {
+    const response = await model.invoke(allMessages, {
       callbacks: [tracer]
     })
 
