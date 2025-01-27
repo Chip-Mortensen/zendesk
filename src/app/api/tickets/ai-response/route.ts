@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { ChatOpenAI } from '@langchain/openai'
 import { LangChainTracer } from 'langchain/callbacks'
+import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -52,10 +53,33 @@ export async function POST(request: Request) {
       .order('created_at', { ascending: true })
 
     // Format conversation history
-    const messages = events?.map(e => ({
-      role: e.created_by === ticket.created_by ? 'user' as const : 'assistant' as const,
-      content: e.comment_text || ''
-    })) || []
+    const messages = events?.flatMap(e => {
+      if (e.event_type === 'comment') {
+        return [
+          e.created_by === ticket.created_by
+            ? new HumanMessage(e.comment_text || '')
+            : new AIMessage(e.comment_text || '')
+        ]
+      }
+      
+      // Format non-comment events as system messages
+      let eventDescription = ''
+      switch (e.event_type) {
+        case 'status_change':
+          eventDescription = `Ticket status changed to ${e.new_status}`
+          break
+        case 'assignee_change':
+          eventDescription = `Ticket assigned to ${e.new_assignee}`
+          break
+        case 'priority_change':
+          eventDescription = `Ticket priority set to ${e.new_priority}`
+          break
+        default:
+          return []
+      }
+
+      return eventDescription ? [new SystemMessage(eventDescription)] : []
+    }) || []
 
     // Get AI response using LangChain
     const response = await model.invoke(messages, {
