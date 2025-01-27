@@ -32,16 +32,28 @@ interface KBArticle {
   created_at: string;
   published_at: string;
   similarity: number;
+  organization_slug?: string;
 }
 
 async function searchKBArticles(comment: string, organizationId: string): Promise<KBArticle[]> {
+  // First get org slug
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('slug')
+    .eq('id', organizationId)
+    .single()
+
+  // Then get articles with org slug
   const vector = await embeddings.embedQuery(comment)
   const { data: articles } = await supabase.rpc('search_kb_articles', {
     query_embedding: vector,
     organization_id: organizationId
   })
   
-  return articles || []
+  return (articles || []).map((article: Omit<KBArticle, 'organization_slug'>) => ({
+    ...article,
+    organization_slug: org?.slug
+  }))
 }
 
 export async function POST(request: Request) {
@@ -110,19 +122,32 @@ export async function POST(request: Request) {
     // Search for relevant KB articles
     const relevantArticles = await searchKBArticles(event.comment_text, ticket.organization_id)
     
-    // Add KB context as a system message if we found any relevant articles
+    // Add initial system message with instructions
+    const baseInstructions = new SystemMessage(
+      "You are a helpful customer service assistant. Follow these guidelines:\n" +
+      "1. Keep responses concise and direct\n" +
+      "2. Do not use any markdown formatting\n" +
+      "3. When a topic needs more detail, provide a link to the relevant article\n" +
+      "4. Use plain text only\n" +
+      "5. Focus on actionable solutions"
+    )
+
+    // Update KB context message
     const allMessages = relevantArticles.length > 0 
       ? [
+          baseInstructions,
           new SystemMessage(
             "Relevant knowledge base articles:\n\n" +
             relevantArticles.map(article => 
-              `Title: ${article.title}\n${article.content}\n---`
+              `Title: ${article.title}\n` +
+              `Link: ${process.env.DEPLOYED_URL}/${article.organization_slug}/kb/${article.id}\n` +
+              `Summary: ${article.content.slice(0, 200)}...\n---`
             ).join("\n") +
-            "\n\nPlease use this knowledge base information to help inform your response."
+            "\n\nWhen referencing these articles, use the provided links instead of including full content."
           ),
           ...messages
         ]
-      : messages
+      : [baseInstructions, ...messages]
 
     // Get AI response using LangChain
     const response = await model.invoke(allMessages, {
