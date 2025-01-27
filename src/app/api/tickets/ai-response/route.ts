@@ -1,90 +1,88 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
+import { ChatOpenAI } from '@langchain/openai'
+import { LangChainTracer } from 'langchain/callbacks'
 
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Initialize Supabase with service role for admin access
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+)
+
+const model = new ChatOpenAI({
+  modelName: "gpt-4o-mini",
+  openAIApiKey: process.env.OPENAI_API_KEY
+})
+
+const tracer = new LangChainTracer()
 
 export async function POST(request: Request) {
   try {
-    const { ticketId, eventId, commentText } = await request.json();
-    console.log('AI Response Trigger Received:', {
-      timestamp: new Date().toISOString(),
-      ticketId,
-      eventId,
-      commentText
-    });
+    const webhookPayload = await request.json()
+    const event = webhookPayload.record
 
-    // Get ticket context including assigned_to
-    const { data: ticket } = await supabase
+    // Check if this is a comment event
+    if (event.event_type !== 'comment') {
+      return NextResponse.json({ status: 'skipped', reason: 'not a comment event' })
+    }
+
+    // Get ticket to check AI enabled and if comment is from customer
+    const { data: ticket, error: ticketError } = await supabase
       .from('tickets')
-      .select('title, description, assigned_to')
-      .eq('id', ticketId)
-      .single();
+      .select('*')
+      .eq('id', event.ticket_id)
+      .single()
 
-    if (!ticket) {
-      throw new Error('Ticket not found');
+    if (ticketError || !ticket) {
+      console.error('Error fetching ticket:', ticketError)
+      return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
     }
 
-    if (!ticket.assigned_to) {
-      console.log('No assigned user for ticket:', ticketId);
-      return NextResponse.json({ status: 'skipped', reason: 'no_assignee' });
+    // Check if AI is enabled and comment is from customer
+    if (!ticket.ai_enabled || ticket.created_by !== event.created_by) {
+      return NextResponse.json({ status: 'skipped', reason: 'AI disabled or not customer comment' })
     }
 
-    // Generate AI response
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful customer service representative. Provide a friendly, professional response to the customer's message. Keep responses concise but helpful."
-        },
-        {
-          role: "user",
-          content: `Ticket Context:
-Title: ${ticket.title}
-Description: ${ticket.description}
-
-Customer's Latest Comment: ${commentText}
-
-Please provide a response to the customer.`
-        }
-      ]
-    });
-
-    const aiResponse = response.choices[0]?.message?.content;
-    if (!aiResponse) {
-      throw new Error('Failed to generate AI response');
-    }
-
-    // Create comment event using assigned_to user
-    const event = {
-      ticket_id: ticketId,
-      event_type: 'comment',
-      created_by: ticket.assigned_to,
-      comment_text: aiResponse
-    };
-
-    const { error: eventError } = await supabase
+    // Get ticket context for AI
+    const { data: events } = await supabase
       .from('ticket_events')
-      .insert([event]);
+      .select('*')
+      .eq('ticket_id', ticket.id)
+      .order('created_at', { ascending: true })
 
-    if (eventError) throw eventError;
+    // Format conversation history
+    const messages = events?.map(e => ({
+      role: e.created_by === ticket.created_by ? 'user' as const : 'assistant' as const,
+      content: e.comment_text || ''
+    })) || []
 
-    return NextResponse.json({ status: 'success', response: aiResponse });
+    // Get AI response using LangChain
+    const response = await model.invoke(messages, {
+      callbacks: [tracer]
+    })
+
+    const aiResponse = response.content
+
+    // Create AI response event
+    const { error: responseError } = await supabase
+      .from('ticket_events')
+      .insert({
+        ticket_id: ticket.id,
+        event_type: 'comment',
+        comment_text: aiResponse,
+        created_by: ticket.assigned_to
+      })
+
+    if (responseError) {
+      console.error('Error creating AI response:', responseError)
+      return NextResponse.json({ error: 'Failed to create AI response' }, { status: 500 })
+    }
+
+    return NextResponse.json({ status: 'success', response: aiResponse })
   } catch (error) {
-    console.error('Error in AI response route:', error);
+    console.error('Error in AI response route:', error)
     return NextResponse.json(
       { error: 'Failed to process AI response' },
       { status: 500 }
-    );
+    )
   }
 } 
