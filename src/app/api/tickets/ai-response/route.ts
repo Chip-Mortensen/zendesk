@@ -28,16 +28,17 @@ interface KBArticle {
   id: string;
   title: string;
   content: string;
-  embedding: number[];
+  author_name: string;
+  created_at: string;
+  published_at: string;
+  similarity: number;
 }
 
-async function searchKBArticles(comment: string): Promise<KBArticle[]> {
+async function searchKBArticles(comment: string, organizationId: string): Promise<KBArticle[]> {
   const vector = await embeddings.embedQuery(comment)
-  
-  const { data: articles } = await supabase.rpc('match_kb_articles', {
+  const { data: articles } = await supabase.rpc('search_kb_articles', {
     query_embedding: vector,
-    match_threshold: 0.5,
-    match_count: 10
+    organization_id: organizationId
   })
   
   return articles || []
@@ -107,7 +108,7 @@ export async function POST(request: Request) {
     }) || []
 
     // Search for relevant KB articles
-    const relevantArticles = await searchKBArticles(event.comment_text)
+    const relevantArticles = await searchKBArticles(event.comment_text, ticket.organization_id)
     
     // Add KB context as a system message if we found any relevant articles
     const allMessages = relevantArticles.length > 0 
