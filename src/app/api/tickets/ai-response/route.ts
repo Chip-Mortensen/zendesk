@@ -13,7 +13,9 @@ const model = new ChatOpenAI({
   openAIApiKey: process.env.OPENAI_API_KEY
 })
 
-const tracer = new LangChainTracer()
+const tracer = new LangChainTracer({
+  projectName: process.env.LANGCHAIN_PROJECT
+})
 
 export async function POST(request: Request) {
   try {
