@@ -71,17 +71,16 @@ export const ticketQueries = {
   },
 
   // Update a ticket
-  async updateTicket(ticketId: string, updates: Partial<Ticket>, organizationId?: string) {
-    const query = supabase
+  async updateTicket(ticketId: string, updates: Partial<Ticket>) {
+    const { data, error } = await supabase
       .from('tickets')
       .update(updates)
-      .eq('id', ticketId);
-    
-    if (organizationId) {
-      query.eq('organization_id', organizationId);
-    }
+      .eq('id', ticketId)
+      .select()
+      .single();
 
-    return await query.select().single();
+    if (error) throw error;
+    return data;
   },
 
   // Delete a ticket
@@ -317,6 +316,18 @@ export const ticketQueries = {
     if (eventError) throw eventError;
 
     return { success: true };
+  },
+
+  async toggleAI(ticketId: string, enabled: boolean) {
+    const { data, error } = await supabase
+      .from('tickets')
+      .update({ ai_enabled: enabled })
+      .eq('id', ticketId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 };
 

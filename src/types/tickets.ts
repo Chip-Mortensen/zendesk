@@ -21,6 +21,7 @@ export type Ticket = {
   rating_comment?: string;
   rating_submitted_at?: string;
   notifications_enabled: boolean;
+  ai_enabled: boolean;
 };
 
 // Base event type

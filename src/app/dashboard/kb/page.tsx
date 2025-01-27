@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
@@ -8,6 +8,7 @@ import { KBArticle } from '@/types/kb';
 import { kbQueries } from '@/utils/sql/kbQueries';
 import { useKBArticleSubscription } from '@/hooks/useKBArticleSubscription';
 import { getPlainTextFromMarkdown } from '@/utils/markdown';
+import { KBSearchBar } from '@/components/kb/KBSearchBar';
 
 export default function KnowledgeBasePage() {
   const router = useRouter();
@@ -16,6 +17,8 @@ export default function KnowledgeBasePage() {
   const [error, setError] = useState<string | null>(null);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<KBArticle[] | null>(null);
 
   useEffect(() => {
     async function loadArticles() {
@@ -80,44 +83,83 @@ export default function KnowledgeBasePage() {
     }
   });
 
+  const handleSearch = useCallback(async (query: string) => {
+    if (!organizationId) return;
+    
+    if (!query.trim()) {
+      setSearchResults(null);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await fetch('/api/kb/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, organizationId }),
+      });
+
+      if (!response.ok) throw new Error('Search failed');
+
+      const { articles: results } = await response.json();
+      setSearchResults(results);
+    } catch (err) {
+      console.error('Search error:', err);
+      // Keep showing existing articles on error
+      setSearchResults(null);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [organizationId]);
+
   if (loading) return <div className="p-4">Loading...</div>;
   if (error) return <div className="p-4 text-red-500">{error}</div>;
+
+  const displayedArticles = searchResults || articles;
 
   return (
     <div className="space-y-6 p-4">
       <div className="bg-white shadow rounded-lg">
         <div className="p-6 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Knowledge Base</h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Here&apos;s what you need to know about our products and services.
-              </p>
+          <div className="space-y-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <h1 className="text-2xl font-semibold text-gray-900">Knowledge Base</h1>
+                <p className="mt-1 text-sm text-gray-500">
+                  Here&apos;s what you need to know about our products and services.
+                </p>
+              </div>
+              <div className="flex gap-4">
+                {isAdmin && (
+                  <Link
+                    href="/dashboard/kb/drafts"
+                    className="border border-gray-300 hover:border-gray-400 px-4 py-2 rounded text-gray-700 hover:text-gray-900"
+                  >
+                    View Drafts
+                  </Link>
+                )}
+                {isAdmin && (
+                  <Link
+                    href="/dashboard/kb/new"
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+                  >
+                    Create New Article
+                  </Link>
+                )}
+              </div>
             </div>
-            <div className="flex gap-4">
-              {isAdmin && (
-                <Link
-                  href="/dashboard/kb/drafts"
-                  className="border border-gray-300 hover:border-gray-400 px-4 py-2 rounded text-gray-700 hover:text-gray-900"
-                >
-                  View Drafts
-                </Link>
-              )}
-              {isAdmin && (
-                <Link
-                  href="/dashboard/kb/new"
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-                >
-                  Create New Article
-                </Link>
-              )}
+            <div className="bg-gray-50 py-4 px-6 rounded-lg">
+              <KBSearchBar 
+                onSearch={handleSearch} 
+                isSearching={isSearching}
+              />
             </div>
           </div>
         </div>
 
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {articles.map((article) => (
+            {displayedArticles.map((article) => (
               <Link
                 key={article.id}
                 href={`/dashboard/kb/${article.id}`}
@@ -145,11 +187,13 @@ export default function KnowledgeBasePage() {
               </Link>
             ))}
 
-            {articles.length === 0 && (
+            {displayedArticles.length === 0 && (
               <div className="col-span-full">
                 <p className="text-gray-500 text-center py-8">
-                  No published articles yet.
-                  {isAdmin && " Click 'Create New Article' to get started."}
+                  {searchResults 
+                    ? 'No matching articles found.' 
+                    : `No published articles yet.${isAdmin ? " Click 'Create New Article' to get started." : ''}`
+                  }
                 </p>
               </div>
             )}

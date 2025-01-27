@@ -20,6 +20,7 @@ export default function TicketDetailContent({
 }: Props) {
   const router = useRouter();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isUpdatingAI, setIsUpdatingAI] = useState(false);
 
   async function handleStatusChange(newStatus: Ticket['status']) {
     try {
@@ -63,6 +64,17 @@ export default function TicketDetailContent({
     }
   }
 
+  async function handleAIToggle() {
+    try {
+      setIsUpdatingAI(true);
+      await ticketQueries.toggleAI(ticket.id, !ticket.ai_enabled);
+    } catch (error) {
+      console.error('Error toggling AI responses:', error);
+    } finally {
+      setIsUpdatingAI(false);
+    }
+  }
+
   return (
     <>
       <div className="space-y-6">
@@ -92,6 +104,40 @@ export default function TicketDetailContent({
                   Delete Ticket
                 </button>
               </div>
+            </div>
+            <div className="flex items-center mt-4">
+              <button
+                onClick={handleAIToggle}
+                disabled={isUpdatingAI}
+                className={`
+                  inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
+                  ${ticket.ai_enabled
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }
+                  transition-colors duration-150
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                `}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={`h-5 w-5 mr-2 ${ticket.ai_enabled ? 'text-blue-700' : 'text-gray-700'}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 2a10 10 0 1 0 10 10H12V2zM12 2v10h10" />
+                </svg>
+                {ticket.ai_enabled ? 'AI Responses On' : 'AI Responses Off'}
+              </button>
+              <span className="ml-2 text-sm text-gray-500">
+                {ticket.ai_enabled
+                  ? 'AI will automatically respond to customer messages'
+                  : 'Turn on to enable automatic AI responses'}
+              </span>
             </div>
           </div>
 
