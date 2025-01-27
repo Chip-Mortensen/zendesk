@@ -92,9 +92,38 @@ function AssignmentChangeContent({ event }: { event: TicketEventWithUser & { eve
 }
 
 function CommentContent({ event }: { event: TicketEventWithUser & { event_type: 'comment' } }) {
+  // Convert URLs to links but preserve the rest of the text
+  const renderTextWithLinks = (text: string) => {
+    // Regex for URLs (including our KB article URLs)
+    const urlRegex = /(https?:\/\/[^\s]+)/g
+    
+    // Split text by URLs and map each part
+    const parts = text.split(urlRegex)
+    const matches = text.match(urlRegex) || []
+    
+    return parts.map((part, i) => {
+      // Regular text
+      if (i % 2 === 0) return part
+      
+      // URL part - matches[Math.floor(i/2)] will get the corresponding URL
+      const url = matches[Math.floor(i/2)]
+      return (
+        <a
+          key={i}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          {url}
+        </a>
+      )
+    })
+  }
+
   return (
     <p className="text-sm text-gray-700 whitespace-pre-wrap">
-      {event.comment_text}
+      {renderTextWithLinks(event.comment_text || '')}
     </p>
   );
 }

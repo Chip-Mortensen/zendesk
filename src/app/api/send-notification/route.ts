@@ -13,26 +13,12 @@ export async function POST(req: Request) {
   });
 
   try {
-    const { ticketId, userId, eventId } = await req.json();
-    console.log('📝 Request data:', { ticketId, userId, eventId });
+    // Handle webhook payload
+    const webhookPayload = await req.json();
+    const event = webhookPayload.record;
+    console.log('📝 Webhook payload:', event);
 
-    // Get user data using the same pattern as in ticketQueries
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from('users')
-      .select(`
-        id,
-        name,
-        email
-      `)
-      .eq('id', userId)
-      .single();
-
-    if (userError || !userData) {
-      console.error('❌ Error fetching user:', userError);
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    // Get ticket data with organization info using the same pattern as in ticketQueries
+    // Get ticket data with organization info
     const { data: ticket, error: ticketError } = await supabaseAdmin
       .from('tickets')
       .select(`
@@ -41,7 +27,7 @@ export async function POST(req: Request) {
           slug
         )
       `)
-      .eq('id', ticketId)
+      .eq('id', event.ticket_id)
       .single();
 
     if (ticketError || !ticket) {
@@ -49,16 +35,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
     }
 
-    // Get event data
-    const { data: event, error: eventError } = await supabaseAdmin
-      .from('ticket_events')
-      .select('*')
-      .eq('id', eventId)
+    // Check notification conditions
+    if (!ticket.notifications_enabled ||
+        !['comment', 'status_change', 'assignment_change'].includes(event.event_type) ||
+        ticket.created_by === event.created_by) {
+      console.log('⏭️ Skipping notification:', { 
+        notifications_enabled: ticket.notifications_enabled,
+        event_type: event.event_type,
+        is_customer: ticket.created_by === event.created_by
+      });
+      return NextResponse.json({ 
+        status: 'skipped',
+        reason: 'Notification conditions not met'
+      });
+    }
+
+    // Get customer data (ticket creator)
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select(`
+        id,
+        name,
+        email
+      `)
+      .eq('id', ticket.created_by)
       .single();
 
-    if (eventError || !event) {
-      console.error('❌ Error fetching event:', eventError);
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    if (userError || !userData) {
+      console.error('❌ Error fetching user:', userError);
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Construct email content based on event type
@@ -95,18 +100,6 @@ export async function POST(req: Request) {
 
     console.log('📧 Sending email:', msg);
     await sgMail.send(msg);
-
-    // Update notification queue status
-    const { error: updateError } = await supabaseAdmin
-      .from('notification_queue')
-      .update({ status: 'sent' })
-      .eq('event_id', eventId)
-      .eq('user_id', userId);
-
-    if (updateError) {
-      console.error('❌ Error updating notification status:', updateError);
-      return NextResponse.json({ error: 'Failed to update notification status' }, { status: 500 });
-    }
 
     console.log('✅ Notification sent successfully');
     return NextResponse.json({ success: true });
