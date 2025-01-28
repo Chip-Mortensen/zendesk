@@ -23,6 +23,14 @@ interface RunContext {
   metadata?: Partial<RunMetadata>;
 }
 
+interface AnalysisResult {
+  technicalAccuracy: string;
+  conversationFlow: string;
+  customerSentiment: string;
+  responseQuality: string;
+  kbUtilization: string;
+}
+
 // Create a traced chain that will show up in LangSmith
 export async function createTracedChain(context: RunContext) {
   const tracer = new LangChainTracer({
@@ -79,6 +87,7 @@ export async function markRunOutcome(
     reason?: string;
     confidence?: number;
     kbGaps?: string[];
+    analysis?: AnalysisResult;
   }
 ) {
   try {
@@ -89,6 +98,7 @@ export async function markRunOutcome(
       score: details.confidence,
       sourceInfo: {
         kbGaps: details.kbGaps,
+        analysis: details.analysis,
       },
     });
   } catch (error) {

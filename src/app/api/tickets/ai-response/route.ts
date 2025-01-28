@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { OpenAIEmbeddings } from '@langchain/openai'
-import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages'
+import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages'
 import { createTracedChain, createEvaluationChain, markRunOutcome } from '@/utils/ai/langchain'
 
 const supabase = createClient(
@@ -30,6 +30,13 @@ interface EvaluationResult {
   reason?: string;
   confidence: number;
   kbGaps: string[];
+  analysis: {
+    technicalAccuracy: string;
+    conversationFlow: string;
+    customerSentiment: string;
+    responseQuality: string;
+    kbUtilization: string;
+  };
 }
 
 async function searchKBArticles(comment: string, organizationId: string): Promise<KBArticle[]> {
@@ -172,28 +179,77 @@ export async function POST(request: Request) {
       }
     })
 
+    // Format conversation history for evaluation
+    const conversationHistory = messages.map((m: BaseMessage) => {
+      if (m instanceof HumanMessage) {
+        return `Customer: ${m.content}`;
+      } else if (m instanceof AIMessage) {
+        return `AI: ${m.content}`;
+      } else {
+        return `System: ${m.content}`;
+      }
+    }).join('\n\n');
+
     // Evaluate the response
     const evaluationPrompt = new SystemMessage(
-      `You are evaluating an AI's response to a customer support ticket. Consider:
-      1. Technical accuracy and completeness
-      2. Appropriate use of KB articles
-      3. Customer sentiment and frustration level
-      4. Response clarity and actionability
+      `You are evaluating an AI's response to a customer support ticket. Your job is to determine if human intervention is needed.
 
-      Ticket Context:
+      Evaluation Criteria:
+      1. Technical Accuracy:
+         - Is the response technically correct?
+         - Does it align with the provided KB articles?
+         - Is it making up information not present in KB?
+         - Are article references accurate and relevant?
+
+      2. Conversation Context:
+         - Does the response acknowledge previous interactions?
+         - Is it repeating information already discussed?
+         - Is it maintaining context from earlier messages?
+         - Are we going in circles with the customer?
+
+      3. Customer Sentiment:
+         - Is the customer showing signs of frustration?
+         - Has the tone escalated over time?
+         - Are we addressing the emotional context appropriately?
+         - Is this a complex issue causing repeated back-and-forth?
+
+      4. Response Quality:
+         - Is the solution actionable and clear?
+         - Are we missing key information needed to resolve the issue?
+         - Is the response appropriate for the customer's technical level?
+         - Are we properly leveraging available KB articles?
+
+      Complete Conversation History:
+      ${conversationHistory}
+
+      Latest Customer Message:
       ${event.comment_text}
 
-      AI Response:
+      AI's Response:
       ${aiResponse}
 
-      KB Articles Available: ${relevantArticles.length}
+      Available KB Articles:
+      ${relevantArticles.map(article => 
+        `Title: ${article.title}
+         URL: ${process.env.DEPLOYED_URL}/${article.organization_slug}/kb/${article.id}
+         Content: ${article.content}
+         Similarity Score: ${article.similarity}
+        `
+      ).join('\n\n')}
 
-      Evaluate if human intervention is needed. Respond with JSON only:
+      Evaluate and respond with JSON only:
       {
         "needsHandoff": boolean,
-        "reason": string (if needsHandoff is true),
+        "reason": string (detailed explanation if handoff needed),
         "confidence": number (0-1),
-        "kbGaps": string[] (list of missing topics)
+        "kbGaps": string[] (list of missing or needed KB topics),
+        "analysis": {
+          "technicalAccuracy": string (assessment of technical correctness),
+          "conversationFlow": string (assessment of conversation progression),
+          "customerSentiment": string (assessment of customer state),
+          "responseQuality": string (assessment of AI's response effectiveness),
+          "kbUtilization": string (assessment of KB article usage)
+        }
       }`
     )
 
@@ -201,7 +257,19 @@ export async function POST(request: Request) {
     const evalContent = evaluation instanceof AIMessage ? evaluation.content : evaluation
     const evalResult: EvaluationResult = typeof evalContent === 'string' 
       ? JSON.parse(evalContent)
-      : { needsHandoff: true, reason: 'Invalid evaluation response', confidence: 0, kbGaps: [] }
+      : { 
+          needsHandoff: true, 
+          reason: 'Invalid evaluation response', 
+          confidence: 0, 
+          kbGaps: [],
+          analysis: {
+            technicalAccuracy: 'Failed to evaluate',
+            conversationFlow: 'Failed to evaluate',
+            customerSentiment: 'Failed to evaluate',
+            responseQuality: 'Failed to evaluate',
+            kbUtilization: 'Failed to evaluate'
+          }
+        }
 
     // If evaluation suggests handoff, update ticket and notify agent
     if (evalResult.needsHandoff) {
@@ -210,20 +278,23 @@ export async function POST(request: Request) {
         .from('tickets')
         .update({
           ai_enabled: false,
-          last_handoff_reason: evalResult.reason
+          last_handoff_reason: evalResult.reason,
+          last_analysis: evalResult.analysis // Store the detailed analysis
         })
         .eq('id', ticket.id)
 
       await markRunOutcome(event.id, 'handoff', {
         reason: evalResult.reason,
         confidence: evalResult.confidence,
-        kbGaps: evalResult.kbGaps
+        kbGaps: evalResult.kbGaps,
+        analysis: evalResult.analysis
       })
 
       return NextResponse.json({
         status: 'handoff',
         reason: evalResult.reason,
-        kbGaps: evalResult.kbGaps
+        kbGaps: evalResult.kbGaps,
+        analysis: evalResult.analysis
       })
     }
 
