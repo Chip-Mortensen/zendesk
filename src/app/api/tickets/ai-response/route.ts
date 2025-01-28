@@ -126,21 +126,31 @@ export async function POST(request: Request) {
       return eventDescription ? [new SystemMessage(eventDescription)] : []
     }) || []
     
-    // Add initial system message with instructions
-    const baseInstructions = new SystemMessage(
-      "You are a helpful customer service assistant. Follow these guidelines:\n" +
-      "1. Keep responses concise and direct but long enough to be helpful\n" +
-      "2. Never use any markdown formatting\n" +
-      "3. When a topic needs more detail, provide a link to the relevant article\n" +
-      "4. Focus on actionable solutions\n" +
-      "5. Pay attention to the customer's tone and sentiment\n" +
-      "6. Use plain text only"
+    // Add role and approach instructions
+    const roleInstructions = new SystemMessage(
+      "You are a helpful customer service assistant. Your goal is to:\n" +
+      "1. Provide clear, actionable solutions\n" +
+      "2. Reference relevant documentation when available\n" +
+      "3. Match the customer's technical level\n" +
+      "4. Show empathy and attention to customer sentiment\n" +
+      "5. Be thorough but concise"
+    )
+
+    // Add strict formatting rules
+    const formattingRules = new SystemMessage(
+      "IMPORTANT - Follow these formatting rules exactly:\n" +
+      "1. Use ONLY plain text in responses\n" +
+      "2. NO markdown formatting of any kind\n" +
+      "3. NO special characters for formatting\n" +
+      "4. When including links, use the full URL as is\n" +
+      "5. Format lists with simple numbers or letters followed by a period"
     )
 
     // Update KB context message
     const allMessages = relevantArticles.length > 0 
       ? [
-          baseInstructions,
+          roleInstructions,
+          formattingRules,
           new SystemMessage(
             "Relevant knowledge base articles:\n\n" +
             relevantArticles.map(article => 
@@ -152,7 +162,7 @@ export async function POST(request: Request) {
           ),
           ...messages
         ]
-      : [baseInstructions, ...messages]
+      : [roleInstructions, formattingRules, ...messages]
 
     // Create traced model for response generation
     const model = await createTracedChain({
