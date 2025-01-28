@@ -210,7 +210,7 @@ export async function POST(request: Request) {
       Evaluation Criteria:
       1. Technical Accuracy:
          - Is the response technically correct?
-         - Does it align with the provided KB articles?
+         - Does it align with the provided KB articles? If it is not present in the KB, that is a failure.
          - Is it making up information not present in KB?
          - Are article references accurate and relevant?
 
