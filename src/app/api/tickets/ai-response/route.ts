@@ -273,13 +273,12 @@ export async function POST(request: Request) {
 
     // If evaluation suggests handoff, update ticket and notify agent
     if (evalResult.needsHandoff) {
-      // Update ticket to disable AI and set handoff reason
+      // Update ticket to disable AI and store complete evaluation
       await supabase
         .from('tickets')
         .update({
           ai_enabled: false,
-          last_handoff_reason: evalResult.reason,
-          last_analysis: evalResult.analysis // Store the detailed analysis
+          last_handoff_reason: evalResult // Store the complete evaluation result
         })
         .eq('id', ticket.id)
 
@@ -292,9 +291,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         status: 'handoff',
-        reason: evalResult.reason,
-        kbGaps: evalResult.kbGaps,
-        analysis: evalResult.analysis
+        evaluation: evalResult // Return complete evaluation in response
       })
     }
 
