@@ -1,8 +1,11 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { Client } from 'langsmith';
+import { LangChainTracer } from 'langchain/callbacks';
 
 // Initialize LangSmith client for feedback
-const client = new Client();
+const client = new Client({
+  apiKey: process.env.LANGCHAIN_API_KEY,
+});
 
 interface RunMetadata {
   ticketId: string;
@@ -22,8 +25,10 @@ interface RunContext {
 
 // Create a traced chain that will show up in LangSmith
 export async function createTracedChain(context: RunContext) {
-  // LangSmith tracing is enabled automatically via LANGCHAIN_API_KEY
-  // and LANGCHAIN_PROJECT environment variables
+  const tracer = new LangChainTracer({
+    projectName: process.env.LANGCHAIN_PROJECT,
+  });
+
   const model = new ChatOpenAI({
     modelName: 'gpt-4o-mini',
     temperature: 0.3,
@@ -36,6 +41,7 @@ export async function createTracedChain(context: RunContext) {
       session_name: `ticket_${context.ticketId}`,
       ...context.metadata,
     } as RunMetadata,
+    callbacks: [tracer],
   });
 
   return model;
@@ -43,6 +49,10 @@ export async function createTracedChain(context: RunContext) {
 
 // Create an evaluation chain
 export async function createEvaluationChain(context: RunContext) {
+  const tracer = new LangChainTracer({
+    projectName: process.env.LANGCHAIN_PROJECT,
+  });
+
   const model = new ChatOpenAI({
     modelName: 'gpt-4o-mini',
     temperature: 0.1, // Lower temperature for more consistent evaluation
@@ -55,6 +65,7 @@ export async function createEvaluationChain(context: RunContext) {
       session_name: `ticket_${context.ticketId}`,
       ...context.metadata,
     } as RunMetadata,
+    callbacks: [tracer],
   });
 
   return model;
