@@ -1,27 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { ChatOpenAI } from '@langchain/openai'
 import { OpenAIEmbeddings } from '@langchain/openai'
-import { LangChainTracer } from 'langchain/callbacks'
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages'
+import { createTracedChain, createEvaluationChain, markRunOutcome } from '@/utils/ai/langchain'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const model = new ChatOpenAI({
-  modelName: "gpt-4o-mini",
-  openAIApiKey: process.env.OPENAI_API_KEY
-})
-
 const embeddings = new OpenAIEmbeddings({
   modelName: "text-embedding-3-small",
   openAIApiKey: process.env.OPENAI_API_KEY
-})
-
-const tracer = new LangChainTracer({
-  projectName: process.env.LANGCHAIN_PROJECT
 })
 
 interface KBArticle {
@@ -33,6 +23,13 @@ interface KBArticle {
   published_at: string;
   similarity: number;
   organization_slug?: string;
+}
+
+interface EvaluationResult {
+  needsHandoff: boolean;
+  reason?: string;
+  confidence: number;
+  kbGaps: string[];
 }
 
 async function searchKBArticles(comment: string, organizationId: string): Promise<KBArticle[]> {
@@ -83,6 +80,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ status: 'skipped', reason: 'AI disabled or not customer comment' })
     }
 
+    // Search for relevant KB articles first
+    const relevantArticles = await searchKBArticles(event.comment_text, ticket.organization_id)
+
     // Get ticket context for AI
     const { data: events } = await supabase
       .from('ticket_events')
@@ -118,9 +118,6 @@ export async function POST(request: Request) {
 
       return eventDescription ? [new SystemMessage(eventDescription)] : []
     }) || []
-
-    // Search for relevant KB articles
-    const relevantArticles = await searchKBArticles(event.comment_text, ticket.organization_id)
     
     // Add initial system message with instructions
     const baseInstructions = new SystemMessage(
@@ -149,12 +146,86 @@ export async function POST(request: Request) {
         ]
       : [baseInstructions, ...messages]
 
-    // Get AI response using LangChain
-    const response = await model.invoke(allMessages, {
-      callbacks: [tracer]
+    // Create traced model for response generation
+    const model = await createTracedChain({
+      ticketId: ticket.id,
+      eventId: event.id,
+      step: 'generate_response',
+      metadata: {
+        kbArticlesFound: relevantArticles.length,
+        conversationLength: messages.length
+      }
     })
 
-    const aiResponse = response.content
+    // Get AI response using traced model
+    const response = await model.invoke(allMessages)
+    const aiResponse = response instanceof AIMessage ? response.content : response
+
+    // Create evaluation model
+    const evaluator = await createEvaluationChain({
+      ticketId: ticket.id,
+      eventId: event.id,
+      step: 'evaluate_response',
+      metadata: {
+        kbArticlesFound: relevantArticles.length,
+        conversationLength: messages.length
+      }
+    })
+
+    // Evaluate the response
+    const evaluationPrompt = new SystemMessage(
+      `You are evaluating an AI's response to a customer support ticket. Consider:
+      1. Technical accuracy and completeness
+      2. Appropriate use of KB articles
+      3. Customer sentiment and frustration level
+      4. Response clarity and actionability
+
+      Ticket Context:
+      ${event.comment_text}
+
+      AI Response:
+      ${aiResponse}
+
+      KB Articles Available: ${relevantArticles.length}
+
+      Evaluate if human intervention is needed. Respond with JSON only:
+      {
+        "needsHandoff": boolean,
+        "reason": string (if needsHandoff is true),
+        "confidence": number (0-1),
+        "kbGaps": string[] (list of missing topics)
+      }`
+    )
+
+    const evaluation = await evaluator.invoke([evaluationPrompt])
+    const evalContent = evaluation instanceof AIMessage ? evaluation.content : evaluation
+    const evalResult: EvaluationResult = typeof evalContent === 'string' 
+      ? JSON.parse(evalContent)
+      : { needsHandoff: true, reason: 'Invalid evaluation response', confidence: 0, kbGaps: [] }
+
+    // If evaluation suggests handoff, update ticket and notify agent
+    if (evalResult.needsHandoff) {
+      // Update ticket to disable AI and set handoff reason
+      await supabase
+        .from('tickets')
+        .update({
+          ai_enabled: false,
+          last_handoff_reason: evalResult.reason
+        })
+        .eq('id', ticket.id)
+
+      await markRunOutcome(event.id, 'handoff', {
+        reason: evalResult.reason,
+        confidence: evalResult.confidence,
+        kbGaps: evalResult.kbGaps
+      })
+
+      return NextResponse.json({
+        status: 'handoff',
+        reason: evalResult.reason,
+        kbGaps: evalResult.kbGaps
+      })
+    }
 
     // Create AI response event
     const { error: responseError } = await supabase
@@ -170,6 +241,11 @@ export async function POST(request: Request) {
       console.error('Error creating AI response:', responseError)
       return NextResponse.json({ error: 'Failed to create AI response' }, { status: 500 })
     }
+
+    await markRunOutcome(event.id, 'success', {
+      confidence: evalResult.confidence,
+      kbGaps: evalResult.kbGaps
+    })
 
     return NextResponse.json({ status: 'success', response: aiResponse })
   } catch (error) {
