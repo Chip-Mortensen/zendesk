@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Ticket } from '@/types/tickets';
+import { Ticket, Tag } from '@/types/tickets';
 import { ticketQueries } from '@/utils/sql/ticketQueries';
 import { supabase } from '@/utils/supabase';
 import Select from '@/components/common/Select';
@@ -27,7 +27,7 @@ export default function TicketActions({
 }: TicketActionsProps) {
   const [assignees, setAssignees] = useState<User[]>([]);
   const [loadingAssignees, setLoadingAssignees] = useState(true);
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [loadingTags, setLoadingTags] = useState(true);
   const [newTag, setNewTag] = useState('');
   const [isAddingNewTag, setIsAddingNewTag] = useState(false);
@@ -51,8 +51,8 @@ export default function TicketActions({
 
     async function loadTags() {
       try {
-        const tags = await ticketQueries.getDistinctTags(ticket.organization_id);
-        setAvailableTags(tags);
+        const tagData = await ticketQueries.getDistinctTags(ticket.organization_id);
+        setTags(tagData);
       } catch (error) {
         console.error('Error loading tags:', error);
       } finally {
@@ -76,7 +76,7 @@ export default function TicketActions({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      await ticketQueries.updateTicketTag(ticket.id, value, user.id);
+      await ticketQueries.updateTicketTag(ticket.id, value || null, user.id);
     } catch (error) {
       console.error('Error updating tag:', error);
     }
@@ -89,8 +89,14 @@ export default function TicketActions({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      await ticketQueries.updateTicketTag(ticket.id, newTag.trim(), user.id);
-      setAvailableTags(prev => [...prev, newTag.trim()]);
+      // First create the new tag
+      const createdTag = await ticketQueries.createTag(newTag.trim(), ticket.organization_id);
+      
+      // Then update the ticket with the new tag ID
+      await ticketQueries.updateTicketTag(ticket.id, createdTag.id, user.id);
+      
+      // Update local state
+      setTags(prev => [...prev, createdTag]);
       setNewTag('');
       setIsAddingNewTag(false);
     } catch (error) {
@@ -117,7 +123,7 @@ export default function TicketActions({
 
   const tagOptions = [
     { label: 'No tag', value: '' },
-    ...availableTags.map(tag => ({ label: tag, value: tag })),
+    ...tags.map(tag => ({ label: tag.name, value: tag.id })),
     { label: '+ Add new tag', value: 'new' }
   ];
 
@@ -190,7 +196,7 @@ export default function TicketActions({
         ) : (
           <Select
             label="Tag"
-            value={ticket.tag || ''}
+            value={ticket.tag_id || ''}
             options={tagOptions}
             onChange={handleTagChange}
             isLoading={loadingTags}

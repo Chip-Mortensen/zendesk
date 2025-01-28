@@ -8,7 +8,7 @@ import TagBadge from './TagBadge';
 interface TicketMetadataProps {
   status: Ticket['status'];
   priority: Ticket['priority'];
-  tag?: string | null;
+  tagId?: string | null;
   showStatusControl?: boolean;
   showPriorityControl?: boolean;
   showPriorityBadge?: boolean;
@@ -19,7 +19,7 @@ interface TicketMetadataProps {
 export default function TicketMetadata({
   status,
   priority,
-  tag,
+  tagId,
   showStatusControl = false,
   showPriorityControl = false,
   showPriorityBadge = true,
@@ -31,7 +31,7 @@ export default function TicketMetadata({
       <div className="flex items-center space-x-4">
         <StatusBadge status={status} size="md" />
         {showPriorityBadge && <PriorityBadge priority={priority} size="md" />}
-        {tag && <TagBadge tag={tag} size="md" />}
+        {tagId && <TagBadge tagId={tagId} size="md" />}
       </div>
       <div className="flex items-center gap-4">
         {showStatusControl && onStatusChange && (

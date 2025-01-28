@@ -93,7 +93,7 @@ export default function TicketDetailContent({
                 <TicketMetadata
                   status={ticket.status}
                   priority={ticket.priority}
-                  tag={ticket.tag}
+                  tagId={ticket.tag_id}
                   showStatusControl={false}
                   showPriorityControl={false}
                 />

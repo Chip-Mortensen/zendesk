@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase';
 import Select from '@/components/common/Select';
 import { ticketQueries } from '@/utils/sql/ticketQueries';
-import { Ticket } from '@/types/tickets';
+import { Ticket, Tag } from '@/types/tickets';
 
 interface BulkActionsBarProps {
   selectedTickets: string[];
@@ -17,9 +17,10 @@ export default function BulkActionsBar({
   const [newValue, setNewValue] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [assignees, setAssignees] = useState<Array<{ id: string; name: string }>>([]);
-  const [tags, setTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [isAddingNewTag, setIsAddingNewTag] = useState(false);
   const [newTagValue, setNewTagValue] = useState('');
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
 
   // Load assignees and tags when component mounts
   useEffect(() => {
@@ -35,13 +36,15 @@ export default function BulkActionsBar({
           .single();
 
         if (memberData) {
+          setOrganizationId(memberData.organization_id);
+          
           // Load assignees
           const users = await ticketQueries.getEligibleAssignees(memberData.organization_id);
           setAssignees(users);
 
           // Load tags
           const existingTags = await ticketQueries.getDistinctTags(memberData.organization_id);
-          setTags(existingTags.filter(Boolean)); // Filter out null/empty tags
+          setTags(existingTags);
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -58,34 +61,33 @@ export default function BulkActionsBar({
       setSubmitting(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
+      if (!organizationId) throw new Error('No organization found');
 
-      let result;
       switch (actionType) {
         case 'status':
-          result = await ticketQueries.bulkUpdateStatus(selectedTickets, newValue as Ticket['status'], user.id);
+          const { error: statusError } = await ticketQueries.bulkUpdateStatus(selectedTickets, newValue as Ticket['status'], user.id);
+          if (statusError) throw statusError;
           break;
         case 'priority':
-          result = await ticketQueries.bulkUpdatePriority(selectedTickets, newValue as Ticket['priority'], user.id);
+          const { error: priorityError } = await ticketQueries.bulkUpdatePriority(selectedTickets, newValue as Ticket['priority'], user.id);
+          if (priorityError) throw priorityError;
           break;
         case 'assignee':
-          result = await ticketQueries.bulkUpdateAssignment(selectedTickets, newValue, user.id);
+          const { error: assigneeError } = await ticketQueries.bulkUpdateAssignment(selectedTickets, newValue, user.id);
+          if (assigneeError) throw assigneeError;
           break;
         case 'tag':
-          const tagValue = isAddingNewTag ? newTagValue : newValue;
-          result = await ticketQueries.bulkUpdateTag(selectedTickets, tagValue, user.id);
-          if (!result?.error && isAddingNewTag) {
-            setTags(prev => [...prev, newTagValue]);
+          if (isAddingNewTag) {
+            // Create new tag first
+            const newTag = await ticketQueries.createTag(newTagValue, organizationId);
+            const { error } = await ticketQueries.bulkUpdateTag(selectedTickets, newTag.id, user.id);
+            if (error) throw error;
+            setTags(prev => [...prev, newTag]);
+          } else {
+            const { error } = await ticketQueries.bulkUpdateTag(selectedTickets, newValue || null, user.id);
+            if (error) throw error;
           }
           break;
-      }
-
-      if (result?.error) {
-        console.error('Bulk update error details:', result.error);
-        throw new Error(`Failed to update tickets: ${result.error.message || 'Unknown error'}`);
-      }
-
-      if (!result?.data?.success) {
-        throw new Error(result?.data?.message || 'Update failed');
       }
 
       // Clear selection after successful update
@@ -124,7 +126,7 @@ export default function BulkActionsBar({
       case 'tag':
         return [
           { label: 'No tag', value: '' },
-          ...tags.map(tag => ({ label: tag, value: tag })),
+          ...tags.map(tag => ({ label: tag.name, value: tag.id })),
           { label: '+ Add new tag', value: 'new' }
         ];
       default:

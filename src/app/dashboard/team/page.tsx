@@ -12,14 +12,14 @@ interface TeamMember {
   email: string;
   role: string;
   created_at: string;
-  specialized_tag: string | null;
+  tag_id: string | null;
 }
 
 interface OrgMemberWithUser {
   user_id: string;
   role: string;
   created_at: string;
-  specialized_tag: string | null;
+  tag_id: string | null;
   users: {
     name: string;
     email: string;
@@ -101,7 +101,7 @@ export default function TeamPage() {
               user_id,
               role,
               created_at,
-              specialized_tag,
+              tag_id,
               users!inner (
                 name,
                 email
@@ -118,7 +118,7 @@ export default function TeamPage() {
               email: m.users.email,
               role: m.role,
               created_at: m.created_at,
-              specialized_tag: m.specialized_tag
+              tag_id: m.tag_id
             })) || []
           );
         }
@@ -199,11 +199,11 @@ export default function TeamPage() {
     }
   };
 
-  const handleTagUpdate = async (memberId: string, newTag: string | null) => {
+  const handleTagUpdate = async (memberId: string, newTagId: string | null) => {
     try {
       const { error } = await supabase
         .from('org_members')
-        .update({ specialized_tag: newTag })
+        .update({ tag_id: newTagId })
         .eq('user_id', memberId)
         .eq('organization_id', organizationId);
 
@@ -213,7 +213,7 @@ export default function TeamPage() {
       setTeamMembers(current =>
         current.map(member =>
           member.user_id === memberId
-            ? { ...member, specialized_tag: newTag }
+            ? { ...member, tag_id: newTagId }
             : member
         )
       );
@@ -329,7 +329,7 @@ export default function TeamPage() {
                       <MemberTagSpecialization
                         memberId={member.user_id}
                         organizationId={organizationId}
-                        currentTag={member.specialized_tag}
+                        currentTag={member.tag_id}
                         onTagUpdate={handleTagUpdate}
                       />
                     )}

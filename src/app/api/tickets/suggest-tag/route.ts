@@ -116,28 +116,25 @@ async function processSuggestion(ticketId: string, title: string, description: s
 
     console.log('Getting existing tags for organization:', organizationId);
     // Get existing tags for the organization using service role client
-    const { data: ticketTags, error: tagsError } = await supabaseAdmin
-      .from('tickets')
-      .select('tag')
-      .eq('organization_id', organizationId)
-      .not('tag', 'is', null);
+    const { data: tags, error: tagsError } = await supabaseAdmin
+      .from('tags')
+      .select('*')
+      .eq('organization_id', organizationId);
 
     if (tagsError) {
       console.error('Error fetching tags:', tagsError);
       throw tagsError;
     }
 
-    console.log('Raw ticket tags:', ticketTags);
-    const existingTags = [...new Set(ticketTags?.map(t => t.tag))];
-    console.log('Unique existing tags:', existingTags);
+    console.log('Available tags:', tags);
 
     // If no existing tags, we can't make a suggestion
-    if (!existingTags.length) {
+    if (!tags?.length) {
       console.log('No existing tags found, skipping suggestion');
       return;
     }
 
-    const prompt = `Given the following support ticket, suggest the most appropriate tag from these options: ${existingTags.join(', ')}. If none fit well, respond with "null".
+    const prompt = `Given the following support ticket, suggest the most appropriate tag from these options: ${tags.map(t => t.name).join(', ')}. If none fit well, respond with "null".
 
 Title: ${title}
 Description: ${description}
@@ -152,89 +149,90 @@ Tag:`;
       temperature: 0.3
     });
 
-    const suggestedTag = completion.choices[0].message.content?.trim();
-    console.log('Received suggested tag:', suggestedTag);
+    const suggestedTagName = completion.choices[0].message.content?.trim();
+    console.log('Received suggested tag name:', suggestedTagName);
     
-    // Only update if the suggested tag exists in our list or is null
-    if (suggestedTag === "null" || existingTags.includes(suggestedTag!)) {
-      console.log('Updating ticket with tag:', suggestedTag);
-      
-      // First try just the update without select
-      const { error: updateOnlyError } = await supabaseAdmin
-        .from('tickets')
-        .update({ tag: suggestedTag === "null" ? null : suggestedTag })
-        .eq('id', ticketId);
+    // Find the tag ID for the suggested tag name
+    const suggestedTag = suggestedTagName === "null" ? null : 
+      tags.find(t => t.name === suggestedTagName);
+    
+    if (suggestedTagName !== "null" && !suggestedTag) {
+      console.log('Suggested tag not found in existing tags:', suggestedTagName);
+      return;
+    }
 
-      if (updateOnlyError) {
-        console.error('Error on update-only operation:', updateOnlyError);
-        throw updateOnlyError;
-      }
+    console.log('Updating ticket with tag ID:', suggestedTag?.id);
+    
+    // Update the ticket with the tag ID
+    const { error: updateOnlyError } = await supabaseAdmin
+      .from('tickets')
+      .update({ tag_id: suggestedTag?.id || null })
+      .eq('id', ticketId);
 
-      // Now verify the update worked
-      console.log('Verifying update...');
-      const { data: verifyUpdate, error: verifyError } = await supabaseAdmin
+    if (updateOnlyError) {
+      console.error('Error on update-only operation:', updateOnlyError);
+      throw updateOnlyError;
+    }
+
+    // Now verify the update worked
+    console.log('Verifying update...');
+    const { data: verifyUpdate, error: verifyError } = await supabaseAdmin
+      .from('tickets')
+      .select('*')
+      .eq('id', ticketId)
+      .single();
+
+    if (verifyError) {
+      console.error('Error verifying update:', verifyError);
+      throw verifyError;
+    }
+
+    console.log('Ticket state after update:', verifyUpdate);
+
+    console.log('Looking for best assignee for tag:', suggestedTagName);
+    // Find the best assignee for this tag using service role client
+    const rpcResponse = await supabaseAdmin.rpc('find_best_assignee', {
+      p_organization_id: organizationId,
+      p_tag_id: suggestedTag?.id || null
+    });
+
+    if (rpcResponse.error) {
+      console.error('Error finding best assignee:', rpcResponse.error);
+      throw rpcResponse.error;
+    }
+
+    // The function returns just the UUID directly
+    const assigneeId = rpcResponse.data;
+    console.log('Found best assignee:', assigneeId);
+
+    // Update the ticket with the found assignee using service role client
+    if (assigneeId) {
+      console.log('Updating ticket with assignee:', assigneeId);
+      const { data: assigneeUpdateData, error: updateError } = await supabaseAdmin
         .from('tickets')
-        .select('*')
+        .update({ assigned_to: assigneeId })
         .eq('id', ticketId)
+        .select()
         .single();
 
-      if (verifyError) {
-        console.error('Error verifying update:', verifyError);
-        throw verifyError;
+      console.log('Assignee update response:', { data: assigneeUpdateData, error: updateError });
+
+      if (updateError) {
+        console.error('Error updating ticket assignee:', updateError);
+        throw updateError;
       }
 
-      console.log('Ticket state after update:', verifyUpdate);
-
-      console.log('Looking for best assignee for tag:', suggestedTag);
-      // Find the best assignee for this tag using service role client
-      const rpcResponse = await supabaseAdmin.rpc('find_best_assignee', {
-        p_organization_id: organizationId,
-        p_tag: suggestedTag === "null" ? null : suggestedTag
-      });
-
-      if (rpcResponse.error) {
-        console.error('Error finding best assignee:', rpcResponse.error);
-        throw rpcResponse.error;
-      }
-
-      // The function returns just the UUID directly
-      const assigneeId = rpcResponse.data;
-      console.log('Found best assignee:', assigneeId);
-
-      // Update the ticket with the found assignee using service role client
-      if (assigneeId) {
-        console.log('Updating ticket with assignee:', assigneeId);
-        const { data: assigneeUpdateData, error: updateError } = await supabaseAdmin
-          .from('tickets')
-          .update({ assigned_to: assigneeId })
-          .eq('id', ticketId)
-          .select()
-          .single();
-
-        console.log('Assignee update response:', { data: assigneeUpdateData, error: updateError });
-
-        if (updateError) {
-          console.error('Error updating ticket assignee:', updateError);
-          throw updateError;
-        }
-
-        // Verify the assignee was updated
-        const { data: verifyAssignee } = await supabaseAdmin
-          .from('tickets')
-          .select('assigned_to')
-          .eq('id', ticketId)
-          .single();
-        
-        console.log('Verified assignee after update:', verifyAssignee);
-        console.log('Successfully updated ticket assignee');
-      } else {
-        console.log('No suitable assignee found');
-      }
+      // Verify the assignee was updated
+      const { data: verifyAssignee } = await supabaseAdmin
+        .from('tickets')
+        .select('assigned_to')
+        .eq('id', ticketId)
+        .single();
+      
+      console.log('Verified assignee after update:', verifyAssignee);
+      console.log('Successfully updated ticket assignee');
     } else {
-      console.log('Suggested tag not in existing tags list:', {
-        suggestedTag,
-        existingTags
-      });
+      console.log('No suitable assignee found');
     }
   } catch (error) {
     console.error('Error in tag suggestion process:', error);

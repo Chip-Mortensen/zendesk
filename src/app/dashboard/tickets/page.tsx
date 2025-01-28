@@ -9,7 +9,7 @@ import SortableHeader from '@/components/table/SortableHeader';
 import { sortTickets } from '@/utils/sorting';
 import TicketFilters, { TicketFilters as TicketFiltersType } from '@/components/tickets/TicketFilters';
 import { isToday, isThisWeek } from 'date-fns';
-import { Ticket } from '@/types/tickets';
+import { Ticket, Tag } from '@/types/tickets';
 import { userQueries } from '@/utils/sql/userQueries';
 import { UserSettings } from '@/types/settings';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
@@ -50,6 +50,7 @@ export default function TicketsPage() {
 
   // Add selected tickets state
   const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set());
+  const [tags, setTags] = useState<Tag[]>([]);
 
   useEffect(() => {
     async function loadUserAndTickets() {
@@ -112,6 +113,19 @@ export default function TicketsPage() {
         }
 
         setTickets(ticketsData || []);
+
+        // Load tags
+        const { data: tagsData, error: tagsError } = await supabase
+          .from('tags')
+          .select('*')
+          .eq('organization_id', memberData.organization_id);
+
+        if (tagsError) {
+          console.error('Error fetching tags:', tagsError);
+          return;
+        }
+
+        setTags(tagsData || []);
       } catch (error) {
         console.error('Error in loadUserAndTickets:', error);
       } finally {
@@ -234,6 +248,40 @@ export default function TicketsPage() {
     };
   }, [organizationId]);
 
+  // Subscribe to tags changes
+  useEffect(() => {
+    if (!organizationId) return;
+
+    const channel = supabase.channel(`org-tags-${organizationId}`);
+    
+    channel
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tags',
+          filter: `organization_id=eq.${organizationId}`
+        },
+        async (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setTags(current => [...current, payload.new as Tag]);
+          } else if (payload.eventType === 'DELETE') {
+            setTags(current => current.filter(tag => tag.id !== payload.old.id));
+          } else if (payload.eventType === 'UPDATE') {
+            setTags(current => 
+              current.map(tag => tag.id === payload.new.id ? payload.new as Tag : tag)
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [organizationId]);
+
   const handleSort = (field: string) => {
     setSortConfig(current => ({
       field,
@@ -269,7 +317,7 @@ export default function TicketsPage() {
       const matchesPriority = filters.priority.length === 0 || filters.priority.includes(ticket.priority);
       const matchesAssignee = filters.assignee.length === 0 || filters.assignee.includes(ticket.assignee?.name || '');
       const matchesCustomer = filters.customer.length === 0 || filters.customer.includes(ticket.customer?.name || '');
-      const matchesTag = filters.tag.length === 0 || filters.tag.includes(ticket.tag || '');
+      const matchesTag = filters.tag.length === 0 || (ticket.tag_id && filters.tag.includes(ticket.tag_id));
       const matchesCreated = filters.created.length === 0 || filters.created.some(dateFilter => {
         if (dateFilter === 'today') return isToday(new Date(ticket.created_at));
         if (dateFilter === 'this_week') return isThisWeek(new Date(ticket.created_at));
@@ -353,6 +401,7 @@ export default function TicketsPage() {
             tickets={tickets}
             filters={filters}
             onFiltersChange={handleFiltersChange}
+            tags={tags}
           />
           {selectedTickets.size > 0 && (
             <BulkActionsBar
@@ -480,10 +529,10 @@ export default function TicketsPage() {
                     {ticket.customer?.name || 'Unknown'}
                   </td>
                   <td 
-                    className="px-3 py-4 whitespace-nowrap text-sm cursor-pointer"
+                    className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 cursor-pointer"
                     onClick={() => router.push(`/dashboard/tickets/${ticket.id}`)}
                   >
-                    {ticket.tag && <TagBadge tag={ticket.tag} size="sm" />}
+                    {ticket.tag_id && <TagBadge tagId={ticket.tag_id} size="sm" />}
                   </td>
                   <td 
                     className="px-3 py-4 whitespace-nowrap text-sm cursor-pointer"

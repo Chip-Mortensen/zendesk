@@ -20,7 +20,7 @@ export interface SortableTicket {
   priority: 'low' | 'medium' | 'high';
   created_at: string;
   organization_id: string;
-  tag?: string;
+  tag_id?: string;
   assigned_to?: string | null;
   assignee?: {
     name: string;
@@ -59,15 +59,18 @@ export function sortTickets(
           ? PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
           : PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority];
 
-      case 'tag':
-        return direction === 'asc'
-          ? (a.tag || '').localeCompare(b.tag || '')
-          : (b.tag || '').localeCompare(a.tag || '');
-
       case 'created_at':
         return direction === 'asc'
           ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
           : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+
+      case 'tag_id':
+        if (!a.tag_id && !b.tag_id) return 0;
+        if (!a.tag_id) return direction === 'asc' ? -1 : 1;
+        if (!b.tag_id) return direction === 'asc' ? 1 : -1;
+        return direction === 'asc'
+          ? a.tag_id.localeCompare(b.tag_id)
+          : b.tag_id.localeCompare(a.tag_id);
 
       case 'assignee':
       case 'assigned_to':

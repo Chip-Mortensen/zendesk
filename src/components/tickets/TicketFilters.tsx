@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { isToday, isThisWeek } from 'date-fns';
 import FilterDropdown from './FilterDropdown';
-import { Ticket } from '@/types/tickets';
+import { Ticket, Tag } from '@/types/tickets';
 
 export interface TicketFilters {
   status: string[];
@@ -16,12 +16,14 @@ interface TicketFiltersProps {
   tickets: Ticket[];
   filters: TicketFilters;
   onFiltersChange: (filters: TicketFilters) => void;
+  tags: Tag[];
 }
 
 export default function TicketFilters({
   tickets,
   filters,
-  onFiltersChange
+  onFiltersChange,
+  tags
 }: TicketFiltersProps) {
   const filterOptions = useMemo(() => ({
     status: [
@@ -48,13 +50,11 @@ export default function TicketFilters({
         value: name!,
         count: tickets.filter(t => t.customer?.name === name).length
       })),
-    tag: Array.from(new Set(tickets.map(t => t.tag)))
-      .filter(Boolean)
-      .map(tag => ({
-        label: tag!,
-        value: tag!,
-        count: tickets.filter(t => t.tag === tag).length
-      })),
+    tag: tags.map(tag => ({
+      label: tag.name,
+      value: tag.id,
+      count: tickets.filter(t => t.tag_id === tag.id).length
+    })),
     created: [
       { 
         label: 'Today', 
@@ -67,7 +67,7 @@ export default function TicketFilters({
         count: tickets.filter(t => isThisWeek(new Date(t.created_at))).length 
       }
     ]
-  }), [tickets]);
+  }), [tickets, tags]);
 
   const handleFilterChange = (filterType: keyof TicketFilters) => (values: string[]) => {
     onFiltersChange({

@@ -1,3 +1,10 @@
+export interface Tag {
+  id: string;
+  name: string;
+  organization_id: string;
+  created_at: string;
+}
+
 export type Ticket = {
   id: string;
   title: string;
@@ -10,7 +17,7 @@ export type Ticket = {
   organization_id: string;
   created_at: string;
   updated_at: string;
-  tag?: string;
+  tag_id?: string;
   assignee?: {
     name: string;
   } | null;

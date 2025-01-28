@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/utils/supabase';
+import { ticketQueries } from '@/utils/sql/ticketQueries';
 import Select from '@/components/common/Select';
+import { Tag } from '@/types/tickets';
 
 interface MemberTagSpecializationProps {
   memberId: string;
   organizationId: string;
   currentTag: string | null;
-  onTagUpdate: (memberId: string, newTag: string | null) => Promise<void>;
+  onTagUpdate: (memberId: string, newTagId: string | null) => Promise<void>;
 }
 
 export default function MemberTagSpecialization({
@@ -15,21 +16,25 @@ export default function MemberTagSpecialization({
   currentTag,
   onTagUpdate
 }: MemberTagSpecializationProps) {
-  const [tags, setTags] = useState<string[]>([]);
-  const [selectedTag, setSelectedTag] = useState(currentTag || '');
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [selectedTagId, setSelectedTagId] = useState(currentTag || '');
   const [isLoading, setIsLoading] = useState(true);
+
+  // Update selectedTagId when currentTag changes
+  useEffect(() => {
+    setSelectedTagId(currentTag || '');
+  }, [currentTag]);
 
   useEffect(() => {
     const loadTags = async () => {
-      const { data: ticketTags } = await supabase
-        .from('tickets')
-        .select('tag')
-        .eq('organization_id', organizationId)
-        .not('tag', 'is', null);
-
-      const uniqueTags = [...new Set(ticketTags?.map(t => t.tag))];
-      setTags(uniqueTags);
-      setIsLoading(false);
+      try {
+        const tagData = await ticketQueries.getDistinctTags(organizationId);
+        setTags(tagData);
+      } catch (error) {
+        console.error('Error loading tags:', error);
+      } finally {
+        setIsLoading(false);
+      }
     };
     loadTags();
   }, [organizationId]);
@@ -37,26 +42,26 @@ export default function MemberTagSpecialization({
   const options = [
     { label: 'General Support', value: '' },
     ...tags.map(tag => ({
-      label: tag,
-      value: tag
+      label: tag.name,
+      value: tag.id
     }))
   ];
 
   const handleChange = async (value: string) => {
-    const newTag = value || null;
-    setSelectedTag(value);
+    const newTagId = value || null;
+    setSelectedTagId(value);
     
     try {
-      await onTagUpdate(memberId, newTag);
+      await onTagUpdate(memberId, newTagId);
     } catch (error) {
       console.error('Error updating tag:', error);
-      setSelectedTag(currentTag || '');
+      setSelectedTagId(currentTag || '');
     }
   };
 
   return (
     <Select
-      value={selectedTag}
+      value={selectedTagId}
       options={options}
       onChange={handleChange}
       isLoading={isLoading}

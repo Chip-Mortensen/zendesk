@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-import { Ticket, TicketEvent, TicketEventWithUser, TicketRatingEvent } from '@/types/tickets';
+import { Ticket, TicketEvent, TicketEventWithUser, TicketRatingEvent, Tag } from '@/types/tickets';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export type TicketError = {
@@ -56,7 +56,8 @@ export const ticketQueries = {
         organization_id: organizationId,
         created_by: createdBy,
         status: 'open',
-        priority: 'medium'
+        priority: 'medium',
+        ai_enabled: true
       })
       .select()
       .single();
@@ -211,23 +212,47 @@ export const ticketQueries = {
     return (data?.map(member => member.users) ?? []).flat() as Array<{ id: string; name: string; email: string }>;
   },
 
-  // Update ticket tag and create a tag change event
-  async updateTicketTag(ticketId: string, newTag: string | null, userId: string) {
-    const { data: ticket } = await supabase
-      .from('tickets')
-      .select('tag')
-      .eq('id', ticketId)
+  // Get distinct tags for an organization
+  async getDistinctTags(organizationId: string): Promise<Tag[]> {
+    const { data, error } = await supabase
+      .from('tags')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .order('name');
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Create a new tag
+  async createTag(name: string, organizationId: string): Promise<Tag> {
+    const { data, error } = await supabase
+      .from('tags')
+      .insert({ name, organization_id: organizationId })
+      .select()
       .single();
 
-    if (!ticket) throw new Error('Ticket not found');
+    if (error) throw error;
+    return data;
+  },
 
-    const oldTag = ticket.tag;
+  // Delete a tag
+  async deleteTag(tagId: string, organizationId: string) {
+    const { error } = await supabase
+      .from('tags')
+      .delete()
+      .eq('id', tagId)
+      .eq('organization_id', organizationId);
 
+    if (error) throw error;
+  },
+
+  // Update ticket tag and create a tag change event
+  async updateTicketTag(ticketId: string, newTagId: string | null, userId: string) {
     // Call the stored procedure
     const { data, error } = await supabase.rpc('update_ticket_tag', {
       p_ticket_id: ticketId,
-      p_new_tag: newTag,
-      p_old_tag: oldTag,
+      p_new_tag_id: newTagId,
       p_user_id: userId
     });
 
@@ -238,14 +263,16 @@ export const ticketQueries = {
     }
   },
 
-  // Get distinct tags for an organization
-  async getDistinctTags(organizationId: string): Promise<string[]> {
-    const { data, error } = await supabase.rpc('get_distinct_tags', {
-      p_organization_id: organizationId
+  // Bulk update tags for multiple tickets
+  async bulkUpdateTag(ticketIds: string[], newTagId: string | null, userId: string) {
+    const { data, error } = await supabase.rpc('bulk_update_ticket_tag', {
+      p_ticket_ids: ticketIds,
+      p_new_tag_id: newTagId,
+      p_user_id: userId
     });
 
     if (error) throw error;
-    return (data || []).map((row: { tag: string }) => row.tag);
+    return { data: data?.[0], error: null };
   },
 
   // Bulk update ticket status
@@ -275,17 +302,6 @@ export const ticketQueries = {
     const { data, error } = await supabase.rpc('bulk_update_ticket_assignment', {
       p_ticket_ids: ticketIds,
       p_new_assignee: newAssigneeId === 'unassigned' ? null : newAssigneeId,
-      p_user_id: userId
-    });
-
-    return { data: data?.[0], error };
-  },
-
-  // Bulk update ticket tag
-  async bulkUpdateTag(ticketIds: string[], newTag: string | null, userId: string) {
-    const { data, error } = await supabase.rpc('bulk_update_ticket_tag', {
-      p_ticket_ids: ticketIds,
-      p_new_tag: newTag === '' ? null : newTag,
       p_user_id: userId
     });
 
