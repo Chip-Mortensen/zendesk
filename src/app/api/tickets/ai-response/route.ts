@@ -195,7 +195,7 @@ export async function POST(request: Request) {
 
     // Evaluate the response
     const evaluationPrompt = new SystemMessage(
-      `You are evaluating an AI's response to a customer support ticket. Your job is to determine if human intervention is needed.
+      `You are evaluating an AI's response to a customer support ticket. Your job is to determine if human intervention is needed. Responses do not need to be perfect, but they should be helpful and actionable.
 
       Evaluation Criteria:
       1. Technical Accuracy:
