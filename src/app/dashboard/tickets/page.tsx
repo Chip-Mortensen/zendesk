@@ -15,6 +15,7 @@ import { UserSettings } from '@/types/settings';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import BulkActionsBar from '@/components/tickets/BulkActionsBar';
 import { StarIcon } from '@heroicons/react/24/solid';
+import Link from 'next/link';
 
 function RatingDisplay({ rating }: { rating?: number }) {
   if (!rating) return null;
@@ -331,11 +332,19 @@ export default function TicketsPage() {
     <div className="space-y-6">
       <div className="bg-white shadow rounded-lg">
         <div className="p-6 border-b border-gray-200">
-          <div>
-            <h1 className="text-2xl font-bold">Support Tickets</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              View and manage all customer support tickets.
-            </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">Support Tickets</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                View and manage all customer support tickets.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/tickets/failed-chats"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              View Failed AI Chats
+            </Link>
           </div>
         </div>
 

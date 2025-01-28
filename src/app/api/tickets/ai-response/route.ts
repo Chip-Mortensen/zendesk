@@ -254,6 +254,7 @@ export async function POST(request: Request) {
       {
         "needsHandoff": boolean,
         "reason": string (detailed explanation if handoff needed),
+        "analysisFailure": string (which category of failure: technicalAccuracy, conversationFlow, customerSentiment, responseQuality, kbUtilization),
         "confidence": number (0-1),
         "kbGaps": string[] (list of missing or needed KB topics),
         "analysis": {
