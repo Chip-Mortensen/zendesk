@@ -129,7 +129,7 @@ export async function POST(request: Request) {
     // Add initial system message with instructions
     const baseInstructions = new SystemMessage(
       "You are a helpful customer service assistant. Follow these guidelines:\n" +
-      "1. Keep responses concise and direct\n" +
+      "1. Keep responses concise and direct but long enough to be helpful\n" +
       "2. Do not use any markdown formatting\n" +
       "3. When a topic needs more detail, provide a link to the relevant article\n" +
       "4. Use plain text only\n" +
@@ -180,15 +180,17 @@ export async function POST(request: Request) {
     })
 
     // Format conversation history for evaluation
-    const conversationHistory = messages.map((m: BaseMessage) => {
-      if (m instanceof HumanMessage) {
-        return `Customer: ${m.content}`;
-      } else if (m instanceof AIMessage) {
-        return `AI: ${m.content}`;
-      } else {
-        return `System: ${m.content}`;
-      }
-    }).join('\n\n');
+    const conversationHistory = messages
+      .slice(0, -1) // Exclude the most recent message
+      .map((m: BaseMessage) => {
+        if (m instanceof HumanMessage) {
+          return `Customer: ${m.content}`;
+        } else if (m instanceof AIMessage) {
+          return `AI: ${m.content}`;
+        } else {
+          return `System: ${m.content}`;
+        }
+      }).join('\n\n');
 
     // Evaluate the response
     const evaluationPrompt = new SystemMessage(
@@ -219,8 +221,8 @@ export async function POST(request: Request) {
          - Is the response appropriate for the customer's technical level?
          - Are we properly leveraging available KB articles?
 
-      Complete Conversation History:
-      ${conversationHistory}
+      Previous Conversation History:
+      ${conversationHistory || "No previous messages - this is the first interaction"}
 
       Latest Customer Message:
       ${event.comment_text}
