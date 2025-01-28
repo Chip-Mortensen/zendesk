@@ -39,7 +39,7 @@ export async function createTracedChain(context: RunContext) {
 
   const model = new ChatOpenAI({
     modelName: 'gpt-4o-mini',
-    temperature: 0.3,
+    temperature: 0.4,
     maxTokens: 1000,
   }).withConfig({
     tags: [context.step],

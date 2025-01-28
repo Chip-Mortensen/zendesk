@@ -133,7 +133,8 @@ export async function POST(request: Request) {
       "2. Do not use any markdown formatting\n" +
       "3. When a topic needs more detail, provide a link to the relevant article\n" +
       "4. Use plain text only\n" +
-      "5. Focus on actionable solutions"
+      "5. Focus on actionable solutions\n" +
+      "6. Pay attention to the customer's tone and sentiment"
     )
 
     // Update KB context message
