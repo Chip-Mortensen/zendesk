@@ -150,7 +150,6 @@ export async function POST(request: Request) {
     const allMessages = relevantArticles.length > 0 
       ? [
           roleInstructions,
-          formattingRules,
           new SystemMessage(
             "Relevant knowledge base articles:\n\n" +
             relevantArticles.map(article => 
@@ -160,9 +159,10 @@ export async function POST(request: Request) {
             ).join("\n") +
             "\n\nWhen referencing these articles, use the provided links instead of including full content."
           ),
-          ...messages
+          ...messages,
+          formattingRules
         ]
-      : [roleInstructions, formattingRules, ...messages]
+      : [roleInstructions, ...messages, formattingRules]
 
     // Create traced model for response generation
     const model = await createTracedChain({
