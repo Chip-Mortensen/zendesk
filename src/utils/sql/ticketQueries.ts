@@ -1,7 +1,6 @@
 import { supabase } from '../supabase';
 import { Ticket, TicketEvent, TicketEventWithUser, TicketRatingEvent } from '@/types/tickets';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
-import { suggestAndUpdateTicketTag } from '../ai/tagSuggestion';
 
 export type TicketError = {
   message: string;
@@ -64,8 +63,23 @@ export const ticketQueries = {
 
     if (error) return { data: null, error: { message: error.message, details: error } };
 
-    // Trigger async tag suggestion
-    await suggestAndUpdateTicketTag(data.id, title, description, organizationId);
+    // Call suggest-tag endpoint directly
+    try {
+      await fetch('/api/tickets/suggest-tag', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticketId: data.id,
+          title,
+          description,
+          organizationId
+        })
+      });
+    } catch (error) {
+      console.error('Error suggesting tag:', error);
+    }
 
     return { data, error: null };
   },
