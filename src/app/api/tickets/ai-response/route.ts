@@ -205,29 +205,35 @@ export async function POST(request: Request) {
 
     // Evaluate the response
     const evaluationPrompt = new SystemMessage(
-      `You are evaluating an AI's response to a customer support ticket. Your job is to determine if human intervention is needed. Responses do not need to be perfect, but they should be helpful and actionable.
+      `You are evaluating an AI's response to a customer support ticket. Your PRIMARY and MOST CRITICAL responsibility is to ensure the AI NEVER provides information that isn't explicitly supported by the knowledge base articles. Any response containing uncertain or made-up information MUST be flagged for human review.
 
-      Evaluation Criteria:
-      1. Technical Accuracy (Most Important):
-         - Is the response technically correct?
-         - Does it align with the provided KB articles?
-         - Is it making up information not present in KB?
-         - Are article references accurate and relevant?
-         - If the response is not present in the KB articles, that is a failure.
+      CRITICAL EVALUATION RULES:
+      1. Knowledge Base Accuracy (IMMEDIATE FAILURE if violated):
+         - The response MUST ONLY contain information explicitly present in the provided KB articles
+         - ANY speculation, assumption, or information not directly from KB articles is an IMMEDIATE FAILURE
+         - If a customer's question cannot be fully answered with available KB articles, flag for human review
+         - Partial answers are acceptable ONLY if they are 100% supported by KB and clearly state what they cannot answer
+         - Links to KB articles should be provided when referencing information
 
-      2. Conversation Context:
+      Secondary Evaluation Criteria (evaluate only if KB accuracy passes):
+      2. Technical Implementation:
+         - Are KB article references accurate and relevant?
+         - Is the technical information properly contextualized?
+         - Does the response avoid oversimplifying complex topics?
+
+      3. Conversation Context:
          - Does the response acknowledge previous interactions?
          - Is it repeating information already discussed?
          - Is it maintaining context from earlier messages?
          - Are we going in circles with the customer?
 
-      3. Customer Sentiment:
+      4. Customer Sentiment:
          - Is the customer showing signs of frustration?
          - Has the tone escalated over time?
          - Are we addressing the emotional context appropriately?
          - Is this a complex issue causing repeated back-and-forth?
 
-      4. Response Quality:
+      5. Response Quality:
          - Is the solution actionable and clear?
          - Are we missing key information needed to resolve the issue?
          - Is the response appropriate for the customer's technical level?
@@ -254,16 +260,16 @@ export async function POST(request: Request) {
       Evaluate and respond with JSON only:
       {
         "needsHandoff": boolean,
-        "reason": string (detailed explanation if handoff needed),
-        "analysisFailure": string (which category of failure: technicalAccuracy, conversationFlow, customerSentiment, responseQuality, kbUtilization),
-        "confidence": number (0-1),
-        "kbGaps": string[] (list of missing or needed KB topics),
+        "reason": string (MUST detail any KB accuracy violations or explain why human review is needed),
+        "analysisFailure": string (which category of failure, with 'kbAccuracy' being most critical),
+        "confidence": number (0-1, should be 0 if ANY information is not KB-backed),
+        "kbGaps": string[] (list of topics from the customer's question that aren't covered by current KB),
         "analysis": {
-          "technicalAccuracy": string (assessment of technical correctness),
+          "kbAccuracy": string (CRITICAL: detail any information in response not supported by KB),
+          "technicalAccuracy": string (assessment of technical correctness within KB scope),
           "conversationFlow": string (assessment of conversation progression),
           "customerSentiment": string (assessment of customer state),
-          "responseQuality": string (assessment of AI's response effectiveness),
-          "kbUtilization": string (assessment of KB article usage)
+          "responseQuality": string (assessment of response effectiveness within KB constraints)
         }
       }`
     )
