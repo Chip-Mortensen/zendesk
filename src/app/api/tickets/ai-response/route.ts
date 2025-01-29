@@ -120,8 +120,7 @@ export async function POST(request: Request) {
       "1. NEVER suggest or imply any policy, procedure, or functionality that isn't explicitly documented in the KB articles\n" +
       "2. If you're unsure if something is supported by the KB, DO NOT mention it, but instead offer the information that is available\n" +
       "3. When the KB doesn't fully answer a question, just offer the information that is available\n" +
-      "4. State clearly what is in the knowledge base, if it says something specifically, state it exactly. Even if it will result in a negative response, do not paraphrase or show uncertainty\n" +
-      "5. You may be friendly and empathetic, but do not make promises or claims about capabilities\n\n" +
+      "4. State clearly what is in the knowledge base, if it says something specifically, state it exactly. Even if it will result in a negative response, do not paraphrase or show uncertainty when referencing the knowledge base\n\n" +
       "YOUR GOALS:\n" +
       "1. Provide solutions using ONLY information from KB articles\n" +
       "2. Always include relevant KB article links when referencing information\n" +
