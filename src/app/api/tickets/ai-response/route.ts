@@ -208,11 +208,12 @@ export async function POST(request: Request) {
       `You are evaluating an AI's response to a customer support ticket. Your job is to determine if human intervention is needed. Responses do not need to be perfect, but they should be helpful and actionable.
 
       Evaluation Criteria:
-      1. Technical Accuracy:
+      1. Technical Accuracy (Most Important):
          - Is the response technically correct?
-         - Does it align with the provided KB articles? If it is not present in the KB, that is a failure.
+         - Does it align with the provided KB articles?
          - Is it making up information not present in KB?
          - Are article references accurate and relevant?
+         - If the response is not present in the KB articles, that is a failure.
 
       2. Conversation Context:
          - Does the response acknowledge previous interactions?
