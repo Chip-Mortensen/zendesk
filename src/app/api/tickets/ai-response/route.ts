@@ -315,16 +315,25 @@ export async function POST(request: Request) {
       const conversationSummary = summaryResponse instanceof AIMessage ? summaryResponse.content : summaryResponse;
 
       // Create internal note with just the key information
-      const handoffNote = `AI Response Handoff
-
+      const handoffNote = `
 Proposed AI Response (Not Sent):
-${aiResponse}
+
+
+"${aiResponse}"
+
+
 
 Reason for Handoff:
-${evalResult.reason}
+
+
+"${evalResult.reason}"
+
+
 
 Summary of Conversation:
-${conversationSummary}`;
+
+
+"${conversationSummary}"`;
 
       // Create the internal note
       const { error: noteError } = await supabase

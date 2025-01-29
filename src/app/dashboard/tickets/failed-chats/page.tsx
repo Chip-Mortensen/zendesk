@@ -16,11 +16,11 @@ interface FailedChat {
     analysisFailure: string;
     kbGaps: string[];
     analysis: {
-      kbAccuracy: string;
       technicalAccuracy: string;
       conversationFlow: string;
       customerSentiment: string;
       responseQuality: string;
+      kbUtilization: string;
     };
   };
   description: string;
@@ -181,9 +181,9 @@ export default function FailedChatsPage() {
                         <h3 className="text-sm font-medium text-gray-900">Secondary Analysis</h3>
                         <div className="grid grid-cols-2 gap-4">
                           <AnalysisCard
-                            title="KB Accuracy"
-                            value={chat.last_handoff_reason.analysis.kbAccuracy}
-                            isFailureCategory={chat.last_handoff_reason.analysisFailure === 'kbAccuracy'}
+                            title="KB Utilization"
+                            value={chat.last_handoff_reason.analysis.kbUtilization}
+                            isFailureCategory={chat.last_handoff_reason.analysisFailure === 'kbUtilization'}
                           />
                           <AnalysisCard
                             title="Response Quality"
