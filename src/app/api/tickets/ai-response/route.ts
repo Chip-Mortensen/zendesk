@@ -126,7 +126,8 @@ export async function POST(request: Request) {
       "1. Provide solutions using ONLY information from KB articles\n" +
       "2. Always include relevant KB article links when referencing information\n" +
       "3. Match the customer's technical level while staying within KB bounds\n" +
-      "4. Show empathy without making unsupported claims"
+      "4. Show empathy without making unsupported claims\n" +
+      "5. Users may ask multiple questions, answer them all as best as you can"
     )
 
     // Add strict formatting rules
@@ -205,7 +206,7 @@ export async function POST(request: Request) {
          - The response MUST ONLY contain information explicitly present in the provided KB articles
          - ANY speculation, assumption, or information not directly from KB articles is an IMMEDIATE FAILURE
          - If a customer's question cannot be fully answered with available KB articles, flag for human review
-         - Partial answers are acceptable ONLY if they are 100% supported by KB and clearly state what they cannot answer
+         - Partial answers are acceptable ONLY if they are supported by KB articles
          - Links to KB articles should be provided when referencing information
          - Technical accuracy must be maintained within the scope of KB content
 
