@@ -11,10 +11,6 @@ interface TimelineEventProps {
   event: TicketEventWithUser;
 }
 
-function getDisplayName(event: TicketEventWithUser): string {
-  return event.users?.name || 'Unknown User';
-}
-
 function formatStatus(status: string): string {
   return status
     .split('_')
@@ -184,6 +180,41 @@ function RatingContent({ event }: { event: TicketEventWithUser & { event_type: '
 }
 
 export default function TimelineEvent({ event }: TimelineEventProps) {
+  const [orgName, setOrgName] = useState<string>('');
+
+  useEffect(() => {
+    async function fetchOrgName() {
+      if (event.is_ai_response && !event.organization?.name) {
+        const { data: ticket } = await supabase
+          .from('tickets')
+          .select(`
+            organization_id,
+            organizations (
+              name
+            )
+          `)
+          .eq('id', event.ticket_id)
+          .single();
+        
+        if (ticket?.organizations && 
+            typeof ticket.organizations === 'object' && 
+            'name' in ticket.organizations && 
+            typeof ticket.organizations.name === 'string') {
+          setOrgName(ticket.organizations.name);
+        }
+      }
+    }
+    fetchOrgName();
+  }, [event.is_ai_response, event.ticket_id, event.organization?.name]);
+
+  const getDisplayName = (event: TicketEventWithUser): string => {
+    if (event.is_ai_response) {
+      const name = event.organization?.name || orgName;
+      return name ? `${name} Agent` : 'AI Agent';
+    }
+    return event.users?.name || 'Unknown User';
+  };
+
   const getBorderColor = () => {
     switch (event.event_type) {
       case 'status_change':
@@ -193,7 +224,7 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
       case 'assignment_change':
         return 'border-purple-500';
       case 'note':
-        return 'border-gray-500';
+        return event.is_ai_response ? 'border-blue-500' : 'border-gray-500';
       case 'tag_change':
         return 'border-blue-500';
       case 'rating':
@@ -206,7 +237,7 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
   };
 
   const getBackgroundColor = () => {
-    if (event.event_type === 'note') return 'bg-gray-50';
+    if (event.event_type === 'note' && !event.is_ai_response) return 'bg-gray-50';
     if (event.event_type === 'rating') return 'bg-yellow-50';
     return 'bg-white';
   };

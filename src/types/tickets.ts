@@ -38,6 +38,7 @@ interface BaseTicketEvent {
   event_type: 'comment' | 'status_change' | 'priority_change' | 'note' | 'assignment_change' | 'tag_change' | 'rating';
   created_at: string;
   created_by: string;
+  is_ai_response?: boolean;
 }
 
 // Comment event
@@ -72,6 +73,7 @@ export interface TicketAssignmentChangeEvent extends BaseTicketEvent {
 export interface TicketNoteEvent extends BaseTicketEvent {
   event_type: 'note';
   comment_text: string;
+  is_ai_response: boolean;
 }
 
 // Tag change event
@@ -103,7 +105,10 @@ export type TicketEventWithUser = TicketEvent & {
   users: {
     name: string;
     email: string;
-  }
+  };
+  organization?: {
+    name: string;
+  };
 };
 
 export interface Comment {

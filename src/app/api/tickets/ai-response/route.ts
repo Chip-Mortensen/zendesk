@@ -340,7 +340,8 @@ Summary of Conversation:
           ticket_id: ticket.id,
           event_type: 'note',
           comment_text: handoffNote,
-          created_by: ticket.assigned_to || event.created_by
+          created_by: ticket.assigned_to || event.created_by,
+          is_ai_response: true
         });
 
       if (noteError) {
@@ -369,7 +370,8 @@ Summary of Conversation:
         ticket_id: ticket.id,
         event_type: 'comment',
         comment_text: aiResponse,
-        created_by: ticket.assigned_to
+        created_by: ticket.assigned_to,
+        is_ai_response: true
       })
 
     if (responseError) {
