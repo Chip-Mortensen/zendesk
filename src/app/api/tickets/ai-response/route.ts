@@ -149,7 +149,7 @@ export async function POST(request: Request) {
             relevantArticles.map(article => 
               `Title: ${article.title}\n` +
               `Link: ${process.env.DEPLOYED_URL}/${article.organization_slug}/kb/${article.id}\n` +
-              `Summary: ${article.content.slice(0, 200)}...\n---`
+              `Content: ${article.content}\n`
             ).join("\n") +
             "\n\nWhen referencing these articles, use the provided links instead of including full content."
           ),
