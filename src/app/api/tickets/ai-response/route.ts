@@ -121,13 +121,13 @@ export async function POST(request: Request) {
       "2. If you're unsure if something is supported by the KB, DO NOT mention it, but instead offer the information that is available\n" +
       "3. When the KB doesn't fully answer a question, just offer the information that is available\n" +
       "4. State clearly what is in the knowledge base, do not paraphrase or show uncertainty\n" +
-      "5. Do not present alternatives while trying to be helpful, just state what is in the knowledge base\n\n" +
+      "5. If all information is in the knowledge base, don't just point them to the article, also offer the information that is in the article\n" +
+      "6. Do not present alternatives while trying to be helpful, just state what is in the knowledge base\n\n" +
       "YOUR GOALS:\n" +
       "1. Provide solutions using ONLY information from KB articles\n" +
       "2. Always include relevant KB article links when referencing information\n" +
       "3. Match the customer's technical level while staying within KB bounds\n" +
-      "4. Show empathy without making unsupported claims\n" +
-      "5. Users may ask multiple questions, answer them all as best as you can"
+      "4. Show empathy without making unsupported claims"
     )
 
     // Add strict formatting rules
