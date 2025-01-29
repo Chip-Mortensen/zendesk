@@ -322,12 +322,10 @@ Proposed AI Response (Not Sent):
 "${aiResponse}"
 
 
-
 Reason for Handoff:
 
 
 "${evalResult.reason}"
-
 
 
 Summary of Conversation:
