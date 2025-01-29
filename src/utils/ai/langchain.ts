@@ -26,7 +26,7 @@ export async function createTracedChain(context: RunContext) {
   const model = new ChatOpenAI({
     modelName: 'gpt-4o-mini',
     temperature: 0.3,
-    maxTokens: 1000,
+    maxTokens: 2000,
   }).withConfig({
     tags: [context.step],
     metadata: {
