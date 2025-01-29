@@ -118,4 +118,17 @@ export interface Comment {
   created_at: string;
   created_by: string;
   commenter_name: string;
+}
+
+export interface EvaluationResult {
+  needsHandoff: boolean;
+  reason?: string;
+  confidence: number;
+  kbGaps: string[];
+  analysis: {
+    kbAccuracy: string;
+    conversationFlow: string;
+    customerSentiment: string;
+    responseQuality: string;
+  };
 } 

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { OpenAIEmbeddings } from '@langchain/openai'
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages'
 import { createTracedChain, createEvaluationChain } from '@/utils/ai/langchain'
+import { EvaluationResult } from '@/types/tickets'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,20 +24,6 @@ interface KBArticle {
   published_at: string;
   similarity: number;
   organization_slug?: string;
-}
-
-interface EvaluationResult {
-  needsHandoff: boolean;
-  reason?: string;
-  confidence: number;
-  kbGaps: string[];
-  analysis: {
-    technicalAccuracy: string;
-    conversationFlow: string;
-    customerSentiment: string;
-    responseQuality: string;
-    kbUtilization: string;
-  };
 }
 
 async function searchKBArticles(comment: string, organizationId: string): Promise<KBArticle[]> {
@@ -214,26 +201,22 @@ export async function POST(request: Request) {
          - If a customer's question cannot be fully answered with available KB articles, flag for human review
          - Partial answers are acceptable ONLY if they are 100% supported by KB and clearly state what they cannot answer
          - Links to KB articles should be provided when referencing information
+         - Technical accuracy must be maintained within the scope of KB content
 
       Secondary Evaluation Criteria (evaluate only if KB accuracy passes):
-      2. Technical Implementation:
-         - Are KB article references accurate and relevant?
-         - Is the technical information properly contextualized?
-         - Does the response avoid oversimplifying complex topics?
-
-      3. Conversation Context:
+      2. Conversation Context:
          - Does the response acknowledge previous interactions?
          - Is it repeating information already discussed?
          - Is it maintaining context from earlier messages?
          - Are we going in circles with the customer?
 
-      4. Customer Sentiment:
+      3. Customer Sentiment:
          - Is the customer showing signs of frustration?
          - Has the tone escalated over time?
          - Are we addressing the emotional context appropriately?
          - Is this a complex issue causing repeated back-and-forth?
 
-      5. Response Quality:
+      4. Response Quality:
          - Is the solution actionable and clear?
          - Are we missing key information needed to resolve the issue?
          - Is the response appropriate for the customer's technical level?
@@ -265,11 +248,10 @@ export async function POST(request: Request) {
         "confidence": number (0-1, how confident are you in your decision on handing off or not),
         "kbGaps": string[] (list of topics from the customer's question that aren't covered by current KB),
         "analysis": {
-          "technicalAccuracy": string (assessment of technical correctness within KB scope),
+          "kbAccuracy": string (assessment of response accuracy and technical correctness based on KB),
           "conversationFlow": string (assessment of conversation progression),
           "customerSentiment": string (assessment of customer state),
-          "responseQuality": string (assessment of response effectiveness within KB constraints),
-          "kbUtilization": string (assessment of KB utilization)
+          "responseQuality": string (assessment of response effectiveness)
         }
       }`
     )
@@ -284,11 +266,10 @@ export async function POST(request: Request) {
           confidence: 0, 
           kbGaps: [],
           analysis: {
-            technicalAccuracy: 'Failed to evaluate',
+            kbAccuracy: 'Failed to evaluate',
             conversationFlow: 'Failed to evaluate',
             customerSentiment: 'Failed to evaluate',
-            responseQuality: 'Failed to evaluate',
-            kbUtilization: 'Failed to evaluate'
+            responseQuality: 'Failed to evaluate'
           }
         }
 

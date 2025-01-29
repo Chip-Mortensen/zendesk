@@ -21,6 +21,7 @@ interface FailedChat {
       customerSentiment: string;
       responseQuality: string;
       kbUtilization: string;
+      kbAccuracy: string;
     };
   };
   description: string;
@@ -181,9 +182,9 @@ export default function FailedChatsPage() {
                         <h3 className="text-sm font-medium text-gray-900">Secondary Analysis</h3>
                         <div className="grid grid-cols-2 gap-4">
                           <AnalysisCard
-                            title="KB Utilization"
-                            value={chat.last_handoff_reason.analysis.kbUtilization}
-                            isFailureCategory={chat.last_handoff_reason.analysisFailure === 'kbUtilization'}
+                            title="KB Accuracy"
+                            value={chat.last_handoff_reason.analysis.kbAccuracy}
+                            isFailureCategory={chat.last_handoff_reason.analysisFailure === 'kbAccuracy'}
                           />
                           <AnalysisCard
                             title="Response Quality"
@@ -191,12 +192,7 @@ export default function FailedChatsPage() {
                             isFailureCategory={chat.last_handoff_reason.analysisFailure === 'responseQuality'}
                           />
                         </div>
-                        <div className="grid grid-cols-3 gap-4">
-                          <AnalysisCard
-                            title="Technical Implementation"
-                            value={chat.last_handoff_reason.analysis.technicalAccuracy}
-                            isFailureCategory={chat.last_handoff_reason.analysisFailure === 'technicalAccuracy'}
-                          />
+                        <div className="grid grid-cols-2 gap-4">
                           <AnalysisCard
                             title="Conversation Flow"
                             value={chat.last_handoff_reason.analysis.conversationFlow}
