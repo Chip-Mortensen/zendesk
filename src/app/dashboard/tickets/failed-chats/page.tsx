@@ -16,11 +16,11 @@ interface FailedChat {
     analysisFailure: string;
     kbGaps: string[];
     analysis: {
+      kbAccuracy: string;
       technicalAccuracy: string;
       conversationFlow: string;
       customerSentiment: string;
       responseQuality: string;
-      kbUtilization: string;
     };
   };
   description: string;
@@ -123,7 +123,6 @@ export default function FailedChatsPage() {
         <div className="divide-y divide-gray-200 p-6">
           {failedChats.map((chat) => {
             const isExpanded = expandedChats.has(chat.id);
-            const confidenceScore = chat.last_handoff_reason.confidence * 100;
             
             return (
               <div key={chat.id} className="group border border-gray-200 rounded-lg mb-4 last:mb-0 hover:border-gray-300 transition-colors duration-150">
@@ -157,14 +156,18 @@ export default function FailedChatsPage() {
                   </div>
 
                   <div className="mt-4 grid grid-cols-5 gap-4">
-                    <div className="col-span-4 bg-gray-50 border border-gray-100 rounded-lg p-4">
+                    <div className="col-span-3 bg-red-50 border border-red-100 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-900 mb-2">KB Accuracy Assessment</h3>
+                      <p className="text-sm text-red-700">{chat.last_handoff_reason.analysis.kbAccuracy}</p>
+                    </div>
+                    <div className="col-span-1 bg-gray-50 border border-gray-100 rounded-lg p-4">
                       <h3 className="text-sm font-medium text-gray-900 mb-2">Handoff Reason</h3>
                       <p className="text-sm text-gray-700">{chat.last_handoff_reason.reason}</p>
                     </div>
                     <div className="col-span-1 bg-gray-50 border border-gray-100 rounded-lg p-4">
-                      <h3 className="text-sm font-medium text-gray-900 mb-2">Handoff Confidence</h3>
+                      <h3 className="text-sm font-medium text-gray-900 mb-2">Confidence</h3>
                       <div className="text-2xl font-semibold text-gray-900">
-                        {confidenceScore.toFixed(1)}%
+                        {(chat.last_handoff_reason.confidence * 100).toFixed(1)}%
                       </div>
                     </div>
                   </div>
@@ -174,10 +177,10 @@ export default function FailedChatsPage() {
                   <div className="border-t border-gray-100">
                     <div className="px-6 py-4">
                       <div className="space-y-4">
-                        <h3 className="text-sm font-medium text-gray-900 mb-2">Analysis Details</h3>
+                        <h3 className="text-sm font-medium text-gray-900 mb-2">Secondary Analysis</h3>
                         <div className="grid grid-cols-2 gap-4">
                           <AnalysisCard
-                            title="Technical Accuracy"
+                            title="Technical Implementation"
                             value={chat.last_handoff_reason.analysis.technicalAccuracy}
                             isFailureCategory={chat.last_handoff_reason.analysisFailure === 'technicalAccuracy'}
                           />
@@ -187,7 +190,7 @@ export default function FailedChatsPage() {
                             isFailureCategory={chat.last_handoff_reason.analysisFailure === 'responseQuality'}
                           />
                         </div>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 gap-4">
                           <AnalysisCard
                             title="Conversation Flow"
                             value={chat.last_handoff_reason.analysis.conversationFlow}
@@ -198,21 +201,17 @@ export default function FailedChatsPage() {
                             value={chat.last_handoff_reason.analysis.customerSentiment}
                             isFailureCategory={chat.last_handoff_reason.analysisFailure === 'customerSentiment'}
                           />
-                          <AnalysisCard
-                            title="KB Utilization"
-                            value={chat.last_handoff_reason.analysis.kbUtilization}
-                            isFailureCategory={chat.last_handoff_reason.analysisFailure === 'kbUtilization'}
-                          />
                         </div>
                       </div>
 
                       {chat.last_handoff_reason.kbGaps.length > 0 && (
                         <div className="mt-6">
                           <h3 className="text-sm font-medium text-gray-900 mb-2">Knowledge Base Gaps</h3>
-                          <div className="bg-white border border-gray-100 rounded-lg p-4">
+                          <div className="bg-red-50 border border-red-100 rounded-lg p-4">
+                            <p className="text-sm text-gray-700 mb-2">These topics from the customer's question are not covered in the current knowledge base:</p>
                             <ul className="space-y-1">
                               {chat.last_handoff_reason.kbGaps.map((gap, index) => (
-                                <li key={index} className="text-sm text-gray-700 flex items-start">
+                                <li key={index} className="text-sm text-red-700 flex items-start">
                                   <span className="mr-2">•</span>
                                   {gap}
                                 </li>

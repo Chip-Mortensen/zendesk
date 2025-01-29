@@ -262,7 +262,7 @@ export async function POST(request: Request) {
         "needsHandoff": boolean,
         "reason": string (MUST detail any KB accuracy violations or explain why human review is needed),
         "analysisFailure": string (which category of failure, with 'kbAccuracy' being most critical),
-        "confidence": number (0-1, how confident are you that no intervention is needed, or that it is needed),
+        "confidence": number (0-1, how confident are you in your decision on handing off or not),
         "kbGaps": string[] (list of topics from the customer's question that aren't covered by current KB),
         "analysis": {
           "kbAccuracy": string (CRITICAL: detail any information in response not supported by KB),
