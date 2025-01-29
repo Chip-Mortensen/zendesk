@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { OpenAIEmbeddings } from '@langchain/openai'
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages'
-import { createTracedChain, createEvaluationChain, markRunOutcome } from '@/utils/ai/langchain'
+import { createTracedChain, createEvaluationChain } from '@/utils/ai/langchain'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

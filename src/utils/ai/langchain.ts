@@ -1,11 +1,5 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { Client } from 'langsmith';
 import { LangChainTracer } from 'langchain/callbacks';
-
-// Initialize LangSmith client for feedback
-const client = new Client({
-  apiKey: process.env.LANGCHAIN_API_KEY,
-});
 
 interface RunMetadata {
   ticketId: string;
@@ -21,14 +15,6 @@ interface RunContext {
   eventId: string;
   step: string;
   metadata?: Partial<RunMetadata>;
-}
-
-interface AnalysisResult {
-  technicalAccuracy: string;
-  conversationFlow: string;
-  customerSentiment: string;
-  responseQuality: string;
-  kbUtilization: string;
 }
 
 // Create a traced chain that will show up in LangSmith
@@ -63,7 +49,7 @@ export async function createEvaluationChain(context: RunContext) {
 
   const model = new ChatOpenAI({
     modelName: 'gpt-4o-mini',
-    temperature: 0.1, // Lower temperature for more consistent evaluation
+    temperature: 0.1,
     maxTokens: 1000,
   }).withConfig({
     tags: ['evaluation', context.step],
@@ -77,26 +63,4 @@ export async function createEvaluationChain(context: RunContext) {
   });
 
   return model;
-}
-
-// Helper to add feedback in LangSmith
-export async function markRunOutcome(
-  eventId: string,
-  outcome: 'success' | 'handoff' | 'note_created' | 'note_creation_failed',
-  metadata?: Record<string, any>
-) {
-  try {
-    // Add feedback to the run in LangSmith
-    await client.createFeedback(eventId, 'outcome', {
-      value: outcome,
-      comment: metadata?.reason,
-      score: metadata?.confidence,
-      sourceInfo: {
-        kbGaps: metadata?.kbGaps,
-        analysis: metadata?.analysis,
-      },
-    });
-  } catch (error) {
-    console.error('Error adding feedback to LangSmith:', error);
-  }
 }
