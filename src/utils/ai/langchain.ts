@@ -81,24 +81,19 @@ export async function createEvaluationChain(context: RunContext) {
 
 // Helper to add feedback in LangSmith
 export async function markRunOutcome(
-  runId: string,
-  outcome: 'success' | 'handoff',
-  details: {
-    reason?: string;
-    confidence?: number;
-    kbGaps?: string[];
-    analysis?: AnalysisResult;
-  }
+  eventId: string,
+  outcome: 'success' | 'handoff' | 'note_created' | 'note_creation_failed',
+  metadata?: Record<string, any>
 ) {
   try {
     // Add feedback to the run in LangSmith
-    await client.createFeedback(runId, 'outcome', {
+    await client.createFeedback(eventId, 'outcome', {
       value: outcome,
-      comment: details.reason,
-      score: details.confidence,
+      comment: metadata?.reason,
+      score: metadata?.confidence,
       sourceInfo: {
-        kbGaps: details.kbGaps,
-        analysis: details.analysis,
+        kbGaps: metadata?.kbGaps,
+        analysis: metadata?.analysis,
       },
     });
   } catch (error) {

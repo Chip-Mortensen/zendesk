@@ -265,11 +265,11 @@ export async function POST(request: Request) {
         "confidence": number (0-1, how confident are you in your decision on handing off or not),
         "kbGaps": string[] (list of topics from the customer's question that aren't covered by current KB),
         "analysis": {
-          "kbAccuracy": string (CRITICAL: detail any information in response not supported by KB),
           "technicalAccuracy": string (assessment of technical correctness within KB scope),
           "conversationFlow": string (assessment of conversation progression),
           "customerSentiment": string (assessment of customer state),
-          "responseQuality": string (assessment of response effectiveness within KB constraints)
+          "responseQuality": string (assessment of response effectiveness within KB constraints),
+          "kbUtilization": string (assessment of KB utilization)
         }
       }`
     )
@@ -294,26 +294,65 @@ export async function POST(request: Request) {
 
     // If evaluation suggests handoff, update ticket and notify agent
     if (evalResult.needsHandoff) {
-      // Update ticket to disable AI and store complete evaluation
+      // Generate concise conversation summary
+      const summaryChain = await createTracedChain({
+        ticketId: ticket.id,
+        eventId: event.id,
+        step: 'create_conversation_summary'
+      });
+
+      const summaryPrompt = new SystemMessage(
+        `Summarize this customer support conversation in one short paragraph. Focus only on the key points and current status.
+
+        Conversation History:
+        ${conversationHistory || "No previous messages"}
+
+        Latest Customer Message:
+        ${event.comment_text}`
+      );
+
+      const summaryResponse = await summaryChain.invoke([summaryPrompt]);
+      const conversationSummary = summaryResponse instanceof AIMessage ? summaryResponse.content : summaryResponse;
+
+      // Create internal note with just the key information
+      const handoffNote = `AI Response Handoff
+
+Proposed AI Response (Not Sent):
+${aiResponse}
+
+Reason for Handoff:
+${evalResult.reason}
+
+Summary of Conversation:
+${conversationSummary}`;
+
+      // Create the internal note
+      const { error: noteError } = await supabase
+        .from('ticket_events')
+        .insert({
+          ticket_id: ticket.id,
+          event_type: 'note',
+          comment_text: handoffNote,
+          created_by: ticket.assigned_to || event.created_by
+        });
+
+      if (noteError) {
+        console.error('Error creating handoff note:', noteError);
+      }
+
+      // Update ticket to disable AI
       await supabase
         .from('tickets')
         .update({
           ai_enabled: false,
-          last_handoff_reason: evalResult // Store the complete evaluation result
+          last_handoff_reason: evalResult
         })
-        .eq('id', ticket.id)
-
-      await markRunOutcome(event.id, 'handoff', {
-        reason: evalResult.reason,
-        confidence: evalResult.confidence,
-        kbGaps: evalResult.kbGaps,
-        analysis: evalResult.analysis
-      })
+        .eq('id', ticket.id);
 
       return NextResponse.json({
         status: 'handoff',
-        evaluation: evalResult // Return complete evaluation in response
-      })
+        reason: evalResult
+      });
     }
 
     // Create AI response event
@@ -330,11 +369,6 @@ export async function POST(request: Request) {
       console.error('Error creating AI response:', responseError)
       return NextResponse.json({ error: 'Failed to create AI response' }, { status: 500 })
     }
-
-    await markRunOutcome(event.id, 'success', {
-      confidence: evalResult.confidence,
-      kbGaps: evalResult.kbGaps
-    })
 
     return NextResponse.json({ status: 'success', response: aiResponse })
   } catch (error) {
