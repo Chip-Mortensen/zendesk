@@ -44,6 +44,7 @@ interface BaseTicketEvent {
 export interface TicketCommentEvent extends BaseTicketEvent {
   event_type: 'comment';
   comment_text: string;
+  is_ai_response: boolean;
 }
 
 // Status change event
@@ -76,8 +77,8 @@ export interface TicketNoteEvent extends BaseTicketEvent {
 // Tag change event
 export interface TicketTagChangeEvent extends BaseTicketEvent {
   event_type: 'tag_change';
-  old_value: string | null;
-  new_value: string | null;
+  old_tag: string | null;
+  new_tag: string | null;
 }
 
 // Rating event

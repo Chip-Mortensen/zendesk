@@ -122,9 +122,18 @@ function CommentContent({ event }: { event: TicketEventWithUser & { event_type: 
   }
 
   return (
-    <p className="text-sm text-gray-700 whitespace-pre-wrap">
-      {renderTextWithLinks(event.comment_text || '')}
-    </p>
+    <div className="space-y-2">
+      {event.is_ai_response && (
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-full border border-blue-100">
+            AI Response
+          </span>
+        </div>
+      )}
+      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+        {renderTextWithLinks(event.comment_text || '')}
+      </p>
+    </div>
   );
 }
 
@@ -140,10 +149,10 @@ function NoteContent({ event }: { event: TicketEventWithUser & { event_type: 'no
 function TagChangeContent({ event }: { event: TicketEventWithUser & { event_type: 'tag_change' } }) {
   return (
     <p className="text-sm text-gray-700">
-      {event.old_value ? (
-        <>Changed tag from &ldquo;{event.old_value}&rdquo; to &ldquo;{event.new_value}&rdquo;</>
+      {event.old_tag ? (
+        <>Changed tag from &ldquo;{event.old_tag}&rdquo; to &ldquo;{event.new_tag}&rdquo;</>
       ) : (
-        <>Added tag &ldquo;{event.new_value}&rdquo;</>
+        <>Added tag &ldquo;{event.new_tag}&rdquo;</>
       )}
     </p>
   );
@@ -189,6 +198,8 @@ export default function TimelineEvent({ event }: TimelineEventProps) {
         return 'border-blue-500';
       case 'rating':
         return 'border-yellow-400';
+      case 'comment':
+        return event.is_ai_response ? 'border-blue-500' : '';
       default:
         return '';
     }

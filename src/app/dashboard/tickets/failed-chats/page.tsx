@@ -134,13 +134,7 @@ export default function FailedChatsPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <h2 className="text-xl font-medium text-gray-900">
-                          <Link 
-                            href={`/dashboard/tickets/${chat.id}`} 
-                            className="hover:text-blue-600"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {chat.title}
-                          </Link>
+                          {chat.title}
                         </h2>
                         <span className="px-3 py-1 text-sm font-medium text-red-700 bg-red-50 rounded-full border border-red-100">
                           AI Handoff
@@ -150,24 +144,31 @@ export default function FailedChatsPage() {
                         Created on {new Date(chat.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className={`ml-4 p-2 text-gray-400 rounded-full transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-                      <ChevronDownIcon className="h-5 w-5" />
+                    <div className="flex items-center gap-4">
+                      <Link
+                        href={`/dashboard/tickets/${chat.id}`}
+                        className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 hover:border-blue-300 rounded-lg transition-colors duration-150"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View Ticket
+                      </Link>
+                      <div className={`p-2 text-gray-400 rounded-full transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                        <ChevronDownIcon className="h-5 w-5" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-5 gap-4">
-                    <div className="col-span-3 bg-red-50 border border-red-100 rounded-lg p-4">
-                      <h3 className="text-sm font-medium text-gray-900 mb-2">KB Accuracy Assessment</h3>
-                      <p className="text-sm text-red-700">{chat.last_handoff_reason.analysis.kbAccuracy}</p>
-                    </div>
-                    <div className="col-span-1 bg-gray-50 border border-gray-100 rounded-lg p-4">
-                      <h3 className="text-sm font-medium text-gray-900 mb-2">Handoff Reason</h3>
-                      <p className="text-sm text-gray-700">{chat.last_handoff_reason.reason}</p>
-                    </div>
-                    <div className="col-span-1 bg-gray-50 border border-gray-100 rounded-lg p-4">
-                      <h3 className="text-sm font-medium text-gray-900 mb-2">Confidence</h3>
-                      <div className="text-2xl font-semibold text-gray-900">
-                        {(chat.last_handoff_reason.confidence * 100).toFixed(1)}%
+                  <div className="mt-4">
+                    <div className="grid grid-cols-5 gap-4">
+                      <div className="col-span-4 bg-gray-50 border border-gray-100 rounded-lg p-4">
+                        <h3 className="text-sm font-medium text-gray-900 mb-2">Handoff Reason</h3>
+                        <p className="text-sm text-gray-700">{chat.last_handoff_reason.reason}</p>
+                      </div>
+                      <div className="col-span-1 bg-gray-50 border border-gray-100 rounded-lg p-4">
+                        <h3 className="text-sm font-medium text-gray-900 mb-2">Confidence</h3>
+                        <div className="text-2xl font-semibold text-gray-900">
+                          {(chat.last_handoff_reason.confidence * 100).toFixed(1)}%
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -175,14 +176,14 @@ export default function FailedChatsPage() {
 
                 {isExpanded && (
                   <div className="border-t border-gray-100">
-                    <div className="px-6 py-4">
+                    <div className="px-6 py-4 space-y-6">
                       <div className="space-y-4">
-                        <h3 className="text-sm font-medium text-gray-900 mb-2">Secondary Analysis</h3>
+                        <h3 className="text-sm font-medium text-gray-900">Secondary Analysis</h3>
                         <div className="grid grid-cols-2 gap-4">
                           <AnalysisCard
-                            title="Technical Implementation"
-                            value={chat.last_handoff_reason.analysis.technicalAccuracy}
-                            isFailureCategory={chat.last_handoff_reason.analysisFailure === 'technicalAccuracy'}
+                            title="KB Accuracy"
+                            value={chat.last_handoff_reason.analysis.kbAccuracy}
+                            isFailureCategory={chat.last_handoff_reason.analysisFailure === 'kbAccuracy'}
                           />
                           <AnalysisCard
                             title="Response Quality"
@@ -190,7 +191,12 @@ export default function FailedChatsPage() {
                             isFailureCategory={chat.last_handoff_reason.analysisFailure === 'responseQuality'}
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
+                          <AnalysisCard
+                            title="Technical Implementation"
+                            value={chat.last_handoff_reason.analysis.technicalAccuracy}
+                            isFailureCategory={chat.last_handoff_reason.analysisFailure === 'technicalAccuracy'}
+                          />
                           <AnalysisCard
                             title="Conversation Flow"
                             value={chat.last_handoff_reason.analysis.conversationFlow}
@@ -205,7 +211,7 @@ export default function FailedChatsPage() {
                       </div>
 
                       {chat.last_handoff_reason.kbGaps.length > 0 && (
-                        <div className="mt-6">
+                        <div>
                           <h3 className="text-sm font-medium text-gray-900 mb-2">Knowledge Base Gaps</h3>
                           <div className="bg-red-50 border border-red-100 rounded-lg p-4">
                             <p className="text-sm text-gray-700 mb-2">These topics from the customer&apos;s question are not covered in the current knowledge base:</p>
