@@ -208,7 +208,7 @@ export default function FailedChatsPage() {
                         <div className="mt-6">
                           <h3 className="text-sm font-medium text-gray-900 mb-2">Knowledge Base Gaps</h3>
                           <div className="bg-red-50 border border-red-100 rounded-lg p-4">
-                            <p className="text-sm text-gray-700 mb-2">These topics from the customer's question are not covered in the current knowledge base:</p>
+                            <p className="text-sm text-gray-700 mb-2">These topics from the customer&apos;s question are not covered in the current knowledge base:</p>
                             <ul className="space-y-1">
                               {chat.last_handoff_reason.kbGaps.map((gap, index) => (
                                 <li key={index} className="text-sm text-red-700 flex items-start">
