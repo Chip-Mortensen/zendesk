@@ -102,42 +102,48 @@ export default function ResponseTimeMetrics({ organizationId }: ResponseTimeMetr
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <StatsCard
           title="First Response Time"
-          value={`${firstResponse?.avg_time_hours.toFixed(1) || '0'} hrs`}
-          description={`90th percentile: ${firstResponse?.p90_time_hours.toFixed(1) || '0'} hrs`}
+          value={`${(firstResponse?.avg_time_hours || 0).toFixed(1)} hrs`}
+          description={`90th percentile: ${(firstResponse?.p90_time_hours || 0).toFixed(1)} hrs`}
           icon={<ClockIcon className="w-5 h-5" />}
           backgroundColor="bg-gradient-to-br from-blue-50 via-white to-indigo-50 border-blue-100"
         />
         <StatsCard
           title="Resolution Time"
-          value={`${resolutionTime?.avg_time_hours.toFixed(1) || '0'} hrs`}
-          description={`90th percentile: ${resolutionTime?.p90_time_hours.toFixed(1) || '0'} hrs`}
+          value={`${(resolutionTime?.avg_time_hours || 0).toFixed(1)} hrs`}
+          description={`90th percentile: ${(resolutionTime?.p90_time_hours || 0).toFixed(1)} hrs`}
           icon={<ClockIcon className="w-5 h-5" />}
           backgroundColor="bg-gradient-to-br from-purple-50 via-white to-pink-50 border-purple-100"
         />
       </div>
 
-      {priorityMetrics.length > 0 && (
-        <div className="pt-4">
-          <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-900">Response Time by Priority</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Average response times segmented by ticket priority level.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {priorityMetrics.map((metric) => (
+      <div className="pt-4">
+        <div className="mb-6">
+          <h3 className="text-lg font-medium text-gray-900">Response Time by Priority</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Average response times segmented by ticket priority level.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {['high', 'medium', 'low'].map((priority) => {
+            const metric = priorityMetrics.find(m => m.priority_level === priority) || {
+              priority_level: priority,
+              avg_time_hours: 0,
+              ticket_count: 0
+            };
+            
+            return (
               <StatsCard
-                key={metric.priority_level}
-                title={`${metric.priority_level.charAt(0).toUpperCase() + metric.priority_level.slice(1)} Priority`}
+                key={priority}
+                title={`${priority.charAt(0).toUpperCase() + priority.slice(1)} Priority`}
                 value={`${metric.avg_time_hours.toFixed(1)} hrs`}
                 description={`${metric.ticket_count} ticket${metric.ticket_count === 1 ? '' : 's'}`}
                 icon={<ClockIcon className="w-5 h-5" />}
-                backgroundColor={getPriorityColor(metric.priority_level)}
+                backgroundColor={getPriorityColor(priority)}
               />
-            ))}
-          </div>
+            );
+          })}
         </div>
-      )}
+      </div>
     </div>
   );
 } 
