@@ -12,7 +12,6 @@ import { isToday, isThisWeek } from 'date-fns';
 import { Ticket, Tag } from '@/types/tickets';
 import { userQueries } from '@/utils/sql/userQueries';
 import { UserSettings } from '@/types/settings';
-import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import BulkActionsBar from '@/components/tickets/BulkActionsBar';
 import { StarIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
@@ -184,64 +183,87 @@ export default function TicketsPage() {
     const channelName = `admin-tickets-${organizationId}`;
     const channel = supabase.channel(channelName);
     
+    console.log('Setting up realtime subscription for tickets:', channelName);
+    
     channel
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'DELETE',
           schema: 'public',
           table: 'tickets',
           filter: `organization_id=eq.${organizationId}`
         },
-        async (payload: RealtimePostgresChangesPayload<{
-          id: string;
-          [key: string]: unknown;
-        }>) => {
-          // Handle ticket changes based on event type
-          if (payload.eventType === 'INSERT') {
-            const { data } = await supabase
-              .from('tickets')
-              .select(`
-                *,
-                assignee:users!tickets_assigned_to_fkey (
-                  name
-                ),
-                customer:users!tickets_created_by_fkey (
-                  name
-                )
-              `)
-              .eq('id', payload.new.id)
-              .single();
+        (payload) => {
+          console.log('Received DELETE event:', payload);
+          setTickets(current => {
+            const updated = current.filter(ticket => ticket.id !== payload.old.id);
+            console.log('Updated tickets after delete:', updated.length);
+            return updated;
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'tickets',
+          filter: `organization_id=eq.${organizationId}`
+        },
+        async (payload) => {
+          const { data } = await supabase
+            .from('tickets')
+            .select(`
+              *,
+              assignee:users!tickets_assigned_to_fkey (
+                name
+              ),
+              customer:users!tickets_created_by_fkey (
+                name
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single();
 
-            if (data) {
-              setTickets(current => [data, ...current]);
-            }
-          } else if (payload.eventType === 'DELETE') {
-            setTickets(current => current.filter(ticket => ticket.id !== payload.old.id));
-          } else if (payload.eventType === 'UPDATE') {
-            const { data } = await supabase
-              .from('tickets')
-              .select(`
-                *,
-                assignee:users!tickets_assigned_to_fkey (
-                  name
-                ),
-                customer:users!tickets_created_by_fkey (
-                  name
-                )
-              `)
-              .eq('id', payload.new.id)
-              .single();
-
-            if (data) {
-              setTickets(current => 
-                current.map(ticket => ticket.id === data.id ? data : ticket)
-              );
-            }
+          if (data) {
+            setTickets(current => [data, ...current]);
           }
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tickets',
+          filter: `organization_id=eq.${organizationId}`
+        },
+        async (payload) => {
+          const { data } = await supabase
+            .from('tickets')
+            .select(`
+              *,
+              assignee:users!tickets_assigned_to_fkey (
+                name
+              ),
+              customer:users!tickets_created_by_fkey (
+                name
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single();
+
+          if (data) {
+            setTickets(current => 
+              current.map(ticket => ticket.id === data.id ? data : ticket)
+            );
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
 
     return () => {
       channel.unsubscribe();
@@ -372,6 +394,32 @@ export default function TicketsPage() {
     setSelectedTickets(new Set());
   };
 
+  // Add refresh function
+  const refreshTickets = async () => {
+    if (!organizationId) return;
+    
+    const { data: ticketsData, error: ticketsError } = await supabase
+      .from('tickets')
+      .select(`
+        *,
+        assignee:users!tickets_assigned_to_fkey (
+          name
+        ),
+        customer:users!tickets_created_by_fkey (
+          name
+        )
+      `)
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: false });
+
+    if (ticketsError) {
+      console.error('Error fetching tickets:', ticketsError);
+      return;
+    }
+
+    setTickets(ticketsData || []);
+  };
+
   if (loading) {
     return <div className="text-center py-12">Loading tickets...</div>;
   }
@@ -407,6 +455,7 @@ export default function TicketsPage() {
             <BulkActionsBar
               selectedTickets={Array.from(selectedTickets)}
               onClearSelection={clearSelection}
+              onRefresh={refreshTickets}
             />
           )}
         </div>
