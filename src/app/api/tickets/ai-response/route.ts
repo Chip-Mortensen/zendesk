@@ -203,9 +203,11 @@ export async function POST(request: Request) {
 
       CRITICAL EVALUATION RULES:
       1. Knowledge Base Accuracy (IMMEDIATE FAILURE if violated):
-         - The response MUST ONLY contain information explicitly present in the provided KB articles
-         - ANY speculation, assumption, or information not directly from KB articles is an IMMEDIATE FAILURE
-         - Partial answers are acceptable ONLY if they are supported by KB articles
+         - The response MUST contain information from the provided KB articles
+         - Information is considered supported if the KB contains the same meaning, even if phrased differently
+         - Partial answers are acceptable if they are supported by KB articles
+         - Do not flag information as unsupported just because it uses different wording
+         - Only flag as unsupported if it clearly contradicts KB or introduces entirely new concepts
          - Links to KB articles should be provided when referencing information
          - Technical accuracy must be maintained within the scope of KB content
 
