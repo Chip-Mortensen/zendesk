@@ -205,7 +205,6 @@ export async function POST(request: Request) {
       1. Knowledge Base Accuracy (IMMEDIATE FAILURE if violated):
          - The response MUST ONLY contain information explicitly present in the provided KB articles
          - ANY speculation, assumption, or information not directly from KB articles is an IMMEDIATE FAILURE
-         - If a customer's question cannot be fully answered with available KB articles, flag for human review
          - Partial answers are acceptable ONLY if they are supported by KB articles
          - Links to KB articles should be provided when referencing information
          - Technical accuracy must be maintained within the scope of KB content
