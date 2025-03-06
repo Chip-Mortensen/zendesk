@@ -148,7 +148,7 @@ export async function POST(request: Request) {
             "Relevant knowledge base articles:\n\n" +
             relevantArticles.map(article => 
               `Title: ${article.title}\n` +
-              `Link: ${process.env.DEPLOYED_URL}/${article.organization_slug}/kb/${article.id}\n` +
+              `Link: ${process.env.DEPLOYED_URL}/org/${article.organization_slug}/kb/${article.id}\n` +
               `Content: ${article.content}\n`
             ).join("\n") +
             "\n\nWhen referencing these articles, use the provided links instead of including full content."
