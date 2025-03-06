@@ -242,7 +242,7 @@ export async function POST(request: Request) {
       Available KB Articles:
       ${relevantArticles.map(article => 
         `Title: ${article.title}
-         URL: ${process.env.DEPLOYED_URL}/${article.organization_slug}/kb/${article.id}
+         URL: ${process.env.DEPLOYED_URL}/org/${article.organization_slug}/kb/${article.id}
          Content: ${article.content}
          Similarity Score: ${article.similarity}
         `
